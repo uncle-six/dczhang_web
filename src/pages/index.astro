@@ -1,0 +1,64 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const posts = (await getCollection('posts', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
+
+const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
+  year: 'numeric', month: 'long', day: 'numeric',
+});
+---
+
+<BaseLayout>
+  <section class="intro">
+    <p class="eyebrow">个人博客 · DCZHANG.ME</p>
+    <h1>记录那些值得<br /><em>反复想想</em>的事。</h1>
+    <p class="lede">你好，我是张德川。这里保存我对技术、阅读与日常的观察。</p>
+  </section>
+
+  <section aria-labelledby="posts-heading">
+    <div class="section-title">
+      <h2 id="posts-heading">最新文章</h2>
+      <span>{posts.length} 篇</span>
+    </div>
+    <div class="post-list">
+      {posts.map((post) => (
+        <article>
+          <a class="post-link" href={`/posts/${post.id}/`}>
+            <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+            <div>
+              <h3>{post.data.title}</h3>
+              <p>{post.data.description}</p>
+              <div class="tags">{post.data.tags.map((tag) => <span>#{tag}</span>)}</div>
+            </div>
+            <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+        </article>
+      ))}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .intro { padding: 6.5rem 0 5rem; }
+  .eyebrow { color: var(--accent); font: 700 .72rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; }
+  h1 { font-size: clamp(2.8rem, 8vw, 5rem); font-weight: 500; letter-spacing: -.075em; line-height: 1.05; margin: 1rem 0 1.6rem; }
+  h1 em { color: var(--accent); font-weight: inherit; }
+  .lede { color: var(--muted); font-size: 1.08rem; line-height: 1.8; max-width: 32rem; }
+  .section-title { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--ink); }
+  h2 { font: 700 .78rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; margin: 0 0 .8rem; }
+  .section-title span { color: var(--muted); font: .78rem ui-sans-serif, system-ui, sans-serif; }
+  .post-list article { border-bottom: 1px solid var(--line); }
+  .post-link { display: grid; grid-template-columns: 7.4rem 1fr auto; gap: 1.5rem; padding: 1.7rem 0; text-decoration: none; }
+  time, .tags { color: var(--muted); font: .76rem ui-sans-serif, system-ui, sans-serif; }
+  h3 { font-size: 1.35rem; font-weight: 550; letter-spacing: -.035em; margin: 0; }
+  article p { color: var(--muted); font-size: .95rem; line-height: 1.7; margin: .5rem 0 .75rem; }
+  .tags { display: flex; gap: .7rem; }
+  .arrow { font: 1.2rem ui-sans-serif, system-ui, sans-serif; }
+  @media (max-width: 600px) {
+    .intro { padding: 4rem 0 3.5rem; }
+    .post-link { grid-template-columns: 1fr auto; gap: .5rem 1rem; }
+    time { grid-column: 1 / -1; }
+  }
+</style>

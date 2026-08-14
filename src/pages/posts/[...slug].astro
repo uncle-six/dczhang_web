@@ -1,0 +1,44 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts', ({ data }) => !data.draft);
+  return posts.map((post) => ({ params: { slug: post.id }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
+  year: 'numeric', month: 'long', day: 'numeric',
+});
+---
+
+<BaseLayout title={`${post.data.title} · 张德川`} description={post.data.description}>
+  <article class="post">
+    <a class="back" href="/">← 所有文章</a>
+    <header>
+      <div class="tags">{post.data.tags.map((tag) => <span>#{tag}</span>)}</div>
+      <h1>{post.data.title}</h1>
+      <p>{post.data.description}</p>
+      <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+    </header>
+    <div class="prose"><Content /></div>
+  </article>
+</BaseLayout>
+
+<style>
+  .post { max-width: 660px; padding-top: 4rem; }
+  .back, .tags, time { font: .78rem ui-sans-serif, system-ui, sans-serif; }
+  .back { text-decoration: none; color: var(--muted); }
+  header { border-bottom: 1px solid var(--line); margin: 3rem 0; padding-bottom: 2.4rem; }
+  .tags { color: var(--accent); display: flex; gap: .75rem; }
+  h1 { font-size: clamp(2.3rem, 7vw, 4.4rem); font-weight: 500; letter-spacing: -.065em; line-height: 1.08; margin: .9rem 0 1.2rem; }
+  header p { color: var(--muted); font-size: 1.1rem; line-height: 1.7; margin: 0 0 1.5rem; }
+  time { color: var(--muted); }
+  .prose :global(p), .prose :global(li) { font-size: 1.08rem; line-height: 1.95; }
+  .prose :global(h2) { font-size: 1.7rem; letter-spacing: -.04em; margin-top: 2.6rem; }
+  .prose :global(a) { color: var(--accent); }
+  .prose :global(code) { background: #eceae1; border-radius: 3px; font: .88em ui-monospace, monospace; padding: .1em .3em; }
+  .prose :global(blockquote) { border-left: 2px solid var(--accent); color: var(--muted); margin: 2rem 0; padding-left: 1.2rem; }
+</style>
