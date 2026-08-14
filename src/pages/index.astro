@@ -25,7 +25,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
     <div class="post-list">
       {posts.map((post) => (
         <article>
-          <a class="post-link" href={`/posts/${post.id}/`}>
+          <a class="post-link" href={`/posts/${post.id.replace(/\.md$/, '')}/`}>
             <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
             <div>
               <h3>{post.data.title}</h3>
