@@ -22,6 +22,10 @@ tags: [随笔]
 正文写在这里。
 ```
 
+## 修改联系方式
+
+右上角“联系”菜单的数据在 `src/config/site.ts` 中维护。每项填写展示名称、说明和链接；站外链接请设置 `external: true`。
+
 ## 部署到 Cloudflare Pages
 
 1. 将此目录初始化为 Git 仓库并推送至 GitHub。

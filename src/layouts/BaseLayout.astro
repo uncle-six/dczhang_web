@@ -1,5 +1,6 @@
 ---
 import Analytics from '@vercel/analytics/astro';
+import { contacts } from '../config/site';
 
 interface Props {
   title?: string;
@@ -43,6 +44,22 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
           搜索
         </a>
+        <details class="contact-menu">
+          <summary>联系 <span aria-hidden="true">+</span></summary>
+          <div class="contact-popover">
+            <p>保持联系</p>
+            <ul>
+              {contacts.map((contact) => (
+                <li>
+                  <a href={contact.href} target={contact.external ? '_blank' : undefined} rel={contact.external ? 'noreferrer' : undefined}>
+                    <span>{contact.label}</span>
+                    <small>{contact.detail}</small>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
       </nav>
     </header>
     <main>
@@ -117,10 +134,23 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   }
   .brand { font-weight: 800; font-size: 1.2rem; text-decoration: none; letter-spacing: -.08em; }
   .brand span { color: var(--accent); }
-  nav { display: flex; gap: 1.25rem; font-size: .9rem; }
+  nav { align-items: center; display: flex; gap: 1.25rem; font-size: .9rem; }
   nav a { text-decoration: none; }
   .search-link { align-items: center; display: inline-flex; gap: .3rem; }
   .search-link svg { fill: none; height: .9rem; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; width: .9rem; }
+  .contact-menu { position: relative; }
+  .contact-menu summary { cursor: pointer; list-style: none; }
+  .contact-menu summary::-webkit-details-marker { display: none; }
+  .contact-menu summary span { color: var(--accent); display: inline-block; margin-left: .1rem; transition: transform .18s ease; }
+  .contact-menu[open] summary span { transform: rotate(45deg); }
+  .contact-popover { animation: menu-in .16s ease-out; background: var(--ink); box-shadow: 0 12px 32px rgba(32, 34, 31, .16); color: var(--paper); min-width: 13rem; padding: 1rem; position: absolute; right: 0; top: calc(100% + .85rem); z-index: 20; }
+  .contact-popover p { color: #bfc0b8; font-size: .7rem; letter-spacing: .1em; margin: 0 0 .6rem; text-transform: uppercase; }
+  .contact-popover ul { list-style: none; margin: 0; padding: 0; }
+  .contact-popover li + li { border-top: 1px solid rgba(248, 247, 242, .16); }
+  .contact-popover a { display: flex; flex-direction: column; gap: .15rem; padding: .7rem 0; text-decoration: none; }
+  .contact-popover a:hover { color: var(--paper); }
+  .contact-popover small { color: #bfc0b8; font-size: .72rem; }
+  @keyframes menu-in { from { opacity: 0; transform: translateY(-.35rem); } to { opacity: 1; transform: translateY(0); } }
   footer {
     display: flex;
     justify-content: space-between;
