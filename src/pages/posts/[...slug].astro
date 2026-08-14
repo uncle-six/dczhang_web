@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { tagUrl } from '../../utils/tags';
 
 export async function getStaticPaths() {
   const posts = await getCollection('posts', ({ data }) => !data.draft);
@@ -21,7 +22,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   <article class="post">
     <a class="back" href="/">← 所有文章</a>
     <header>
-      <div class="tags">{post.data.tags.map((tag) => <span>#{tag}</span>)}</div>
+      <div class="tags">{post.data.tags.map((tag) => <a href={tagUrl(tag)}>#{tag}</a>)}</div>
       <h1>{post.data.title}</h1>
       <p>{post.data.description}</p>
       <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>

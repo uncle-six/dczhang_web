@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { tagUrl } from '../utils/tags';
 
 const posts = (await getCollection('posts', ({ data }) => !data.draft))
   .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
@@ -30,7 +31,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
             <div>
               <h3>{post.data.title}</h3>
               <p>{post.data.description}</p>
-              <div class="tags">{post.data.tags.map((tag) => <span>#{tag}</span>)}</div>
+              <div class="tags">{post.data.tags.map((tag) => <a href={tagUrl(tag)}>#{tag}</a>)}</div>
             </div>
             <span class="arrow" aria-hidden="true">↗</span>
           </a>

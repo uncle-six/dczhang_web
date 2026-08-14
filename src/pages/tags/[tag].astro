@@ -1,0 +1,69 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { tagUrl } from '../../utils/tags';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts', ({ data }) => !data.draft);
+  const tags = [...new Set(posts.flatMap((post) => post.data.tags))];
+  return tags.map((tag) => ({ params: { tag }, props: { tag } }));
+}
+
+const { tag } = Astro.props;
+const posts = (await getCollection('posts', ({ data }) => !data.draft && data.tags.includes(tag)))
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
+const allTags = [...new Set((await getCollection('posts', ({ data }) => !data.draft))
+  .flatMap((post) => post.data.tags))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
+  year: 'numeric', month: 'long', day: 'numeric',
+});
+---
+
+<BaseLayout title={`#${tag} · 张德川`} description={`所有带有「${tag}」标签的文章。`}>
+  <section class="tag-page">
+    <a class="back" href="/">← 所有文章</a>
+    <p class="eyebrow">TAG</p>
+    <h1>#{tag}</h1>
+    <p class="summary">共 {posts.length} 篇文章</p>
+    <nav class="tag-nav" aria-label="所有标签">
+      {allTags.map((item) => <a class:list={[{ active: item === tag }]} href={tagUrl(item)}>#{item}</a>)}
+    </nav>
+    <div class="post-list">
+      {posts.map((post) => (
+        <article>
+          <a class="post-link" href={`/posts/${post.id.replace(/\.md$/, '')}/`}>
+            <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+            <div>
+              <h2>{post.data.title}</h2>
+              <p>{post.data.description}</p>
+            </div>
+            <span class="arrow" aria-hidden="true">↗</span>
+          </a>
+        </article>
+      ))}
+    </div>
+  </section>
+</BaseLayout>
+
+<style>
+  .tag-page { min-height: 55vh; padding-top: 4.5rem; }
+  .back { color: var(--muted); font: .78rem ui-sans-serif, system-ui, sans-serif; text-decoration: none; }
+  .eyebrow { color: var(--accent); font: 700 .72rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; margin: 3rem 0 .65rem; }
+  h1 { font-size: clamp(2.8rem, 7vw, 4.5rem); font-weight: 500; letter-spacing: -.07em; line-height: 1; margin: 0; }
+  .summary { color: var(--muted); font: .85rem ui-sans-serif, system-ui, sans-serif; margin: 1rem 0 2rem; }
+  .tag-nav { display: flex; flex-wrap: wrap; gap: .55rem .8rem; border-bottom: 1px solid var(--line); padding-bottom: 1.5rem; }
+  .tag-nav a { color: var(--muted); font: .82rem ui-sans-serif, system-ui, sans-serif; text-decoration: none; }
+  .tag-nav a.active, .tag-nav a:hover { color: var(--accent); }
+  .post-list { border-top: 1px solid var(--ink); margin-top: 2.2rem; }
+  .post-list article { border-bottom: 1px solid var(--line); }
+  .post-link { display: grid; grid-template-columns: 7.4rem 1fr auto; gap: 1.5rem; padding: 1.7rem 0; text-decoration: none; }
+  time { color: var(--muted); font: .76rem ui-sans-serif, system-ui, sans-serif; }
+  h2 { font-size: 1.35rem; font-weight: 550; letter-spacing: -.035em; margin: 0; }
+  article p { color: var(--muted); font-size: .95rem; line-height: 1.7; margin: .5rem 0 0; }
+  .arrow { font: 1.2rem ui-sans-serif, system-ui, sans-serif; }
+  @media (max-width: 600px) {
+    .tag-page { padding-top: 3.5rem; }
+    .post-link { grid-template-columns: 1fr auto; gap: .5rem 1rem; }
+    time { grid-column: 1 / -1; }
+  }
+</style>

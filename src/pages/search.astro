@@ -89,7 +89,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       description.className = 'description';
       description.textContent = article.description;
       tags.className = 'tags';
-      tags.textContent = article.tags.map((tag) => `#${tag}`).join('  ');
+      for (const [index, tag] of article.tags.entries()) {
+        if (index > 0) tags.append('  ');
+        const tagLink = document.createElement('a');
+        tagLink.href = `/tags/${encodeURIComponent(tag)}/`;
+        tagLink.textContent = `#${tag}`;
+        tags.append(tagLink);
+      }
       link.append(meta, title, description, tags);
       item.append(link);
       results.append(item);
