@@ -21,13 +21,13 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
 <BaseLayout title={`${post.data.title} · 章徳川`} description={post.data.description}>
   <article class="post">
     <a class="back" href="/">← 所有文章</a>
-    <header>
+    <header data-reveal>
       <div class="tags">{post.data.tags.map((tag) => <a href={tagUrl(tag)}>#{tag}</a>)}</div>
       <h1>{post.data.title}</h1>
       <p>{post.data.description}</p>
       <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
     </header>
-    <div class="prose"><Content /></div>
+    <div class="prose" data-reveal style="--reveal-delay: 100ms"><Content /></div>
   </article>
 </BaseLayout>
 

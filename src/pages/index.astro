@@ -12,20 +12,20 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
 ---
 
 <BaseLayout>
-  <section class="intro">
+  <section class="intro" data-reveal>
     <p class="eyebrow">个人博客 · DCZHANG.ME</p>
     <h1>记录那些值得<br /><em>反复想想</em>的事。</h1>
     <p class="lede">你好，我是章徳川。这里保存我对技术、阅读与日常的观察。</p>
   </section>
 
   <section aria-labelledby="posts-heading">
-    <div class="section-title">
+    <div class="section-title" data-reveal>
       <h2 id="posts-heading">最新文章</h2>
       <span>{posts.length} 篇</span>
     </div>
     <div class="post-list">
-      {posts.map((post) => (
-        <article>
+      {posts.map((post, index) => (
+        <article data-reveal style={`--reveal-delay: ${Math.min(index * 70, 280)}ms`}>
           <div class="post-card">
             <div class="post-content">
               <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
@@ -51,7 +51,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   h2 { font: 700 .78rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; margin: 0 0 .8rem; }
   .section-title span { color: var(--muted); font: .78rem ui-sans-serif, system-ui, sans-serif; }
   .post-list article { border-bottom: 1px solid var(--line); }
-  .post-card { align-items: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2rem; padding: 2rem 0; }
+  .post-card { align-items: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2rem; padding: 2rem 0; transition: transform .2s ease; }
   .post-content { min-width: 0; }
   time, .tags { color: var(--muted); font: .76rem ui-sans-serif, system-ui, sans-serif; }
   h3 { font-size: clamp(1.65rem, 3.4vw, 2.25rem); font-weight: 550; letter-spacing: -.05em; line-height: 1.18; margin: .45rem 0 .7rem; }
@@ -61,6 +61,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   .tags a { text-decoration: none; }
   .arrow { align-items: center; border: 1px solid var(--line); border-radius: 999px; display: grid; flex: 0 0 auto; font: 1.25rem ui-sans-serif, system-ui, sans-serif; height: 2.5rem; justify-content: center; text-decoration: none; transition: background-color .15s ease, color .15s ease; width: 2.5rem; }
   .arrow:hover { background: var(--accent); border-color: var(--accent); color: white; }
+  @media (hover: hover) { .post-card:hover { transform: translateX(.35rem); } .post-card:hover .arrow { background: var(--accent); border-color: var(--accent); color: white; } }
   @media (max-width: 600px) {
     .intro { padding: 4rem 0 3.5rem; }
     .post-card { gap: 1rem; padding: 1.6rem 0; }
