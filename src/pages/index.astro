@@ -14,7 +14,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
 <BaseLayout>
   <section class="intro" data-reveal>
     <p class="eyebrow">个人博客 · DCZHANG.ME</p>
-    <h1>记录那些值得思考的事。</h1>
+    <h1>记录那些值得 <em>反复想想</em> 的事。</h1>
     <p class="lede">你好，我是章德川。这里保存我对阅读、远行和技术等思考。🤔</p>
   </section>
 
@@ -45,6 +45,8 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   .intro { padding: 6.5rem 0 5rem; }
   .eyebrow { color: var(--accent); font: 700 .72rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; }
   h1 { font-size: clamp(2.8rem, 8vw, 5rem); font-weight: 500; letter-spacing: -.075em; line-height: 1.05; margin: 1rem 0 1.6rem; }
+  h1 em { color: var(--accent); font-style: normal; font-weight: inherit; position: relative; white-space: nowrap; }
+  h1 em::after { background: currentColor; bottom: .02em; content: ''; height: .06em; left: .04em; opacity: .38; position: absolute; transform: rotate(-1.5deg); width: 96%; }
   .lede { color: var(--muted); font-size: 1.08rem; line-height: 1.8; max-width: 32rem; }
   .section-title { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--ink); }
   h2 { font: 700 .78rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; margin: 0 0 .8rem; }
