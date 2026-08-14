@@ -5,8 +5,8 @@ interface Props {
 }
 
 const {
-  title = '张德川 · 笔记与思考',
-  description = '张德川的个人博客，记录技术、阅读与生活中的思考。',
+  title = '章徳川 · 笔记与思考',
+  description = '章徳川的个人博客，记录技术、阅读与生活中的思考。',
 } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
@@ -42,7 +42,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       <slot />
     </main>
     <footer>
-      <p>© {new Date().getFullYear()} 张德川 · 写给好奇心</p>
+      <p>© {new Date().getFullYear()} 章徳川 · 写给好奇心</p>
     </footer>
   </body>
 </html>
