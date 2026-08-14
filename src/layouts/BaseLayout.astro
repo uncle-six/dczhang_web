@@ -1,4 +1,6 @@
 ---
+import Analytics from '@vercel/analytics/astro';
+
 interface Props {
   title?: string;
   description?: string;
@@ -44,6 +46,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <footer>
       <p>© {new Date().getFullYear()} 章徳川 · 写给好奇心</p>
     </footer>
+    <Analytics />
   </body>
 </html>
 
