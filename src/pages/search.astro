@@ -1,0 +1,127 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="搜索文章 · 张德川" description="搜索张德川博客中的历史文章。">
+  <section class="search-page">
+    <p class="eyebrow">SEARCH</p>
+    <h1>搜索文章</h1>
+    <label class="search-box" for="search-input">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+      <input id="search-input" type="search" placeholder="搜索标题、正文或标签" autocomplete="off" />
+    </label>
+    <p id="search-status" class="status" aria-live="polite">正在载入文章…</p>
+    <div id="search-results" class="results"></div>
+  </section>
+</BaseLayout>
+
+<script>
+  type Article = {
+    title: string;
+    description: string;
+    tags: string[];
+    publishedAt: string;
+    href: string;
+    content: string;
+  };
+
+  const input = document.querySelector<HTMLInputElement>('#search-input')!;
+  const results = document.querySelector<HTMLDivElement>('#search-results')!;
+  const status = document.querySelector<HTMLParagraphElement>('#search-status')!;
+  let articles: Article[] = [];
+
+  const normalize = (text: string) => text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*_`~()[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase();
+
+  const formatDate = (date: string) => new Intl.DateTimeFormat('zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  }).format(new Date(date));
+
+  function showResults() {
+    const query = normalize(input.value);
+    results.replaceChildren();
+
+    if (!query) {
+      status.textContent = `共 ${articles.length} 篇文章。输入关键词开始搜索。`;
+      return;
+    }
+
+    const terms = query.split(' ').filter(Boolean);
+    const matches = articles
+      .map((article) => {
+        const title = normalize(article.title);
+        const description = normalize(article.description);
+        const tags = normalize(article.tags.join(' '));
+        const content = normalize(article.content);
+        const searchable = `${title} ${description} ${tags} ${content}`;
+        if (!terms.every((term) => searchable.includes(term))) return null;
+        const score = terms.reduce((total, term) => total
+          + (title.includes(term) ? 12 : 0)
+          + (description.includes(term) ? 6 : 0)
+          + (tags.includes(term) ? 4 : 0)
+          + (content.includes(term) ? 1 : 0), 0);
+        return { article, score };
+      })
+      .filter((match): match is { article: Article; score: number } => match !== null)
+      .sort((a, b) => b.score - a.score || b.article.publishedAt.localeCompare(a.article.publishedAt));
+
+    status.textContent = matches.length ? `找到 ${matches.length} 篇相关文章` : '没有找到相关文章';
+    for (const { article } of matches) {
+      const item = document.createElement('article');
+      const link = document.createElement('a');
+      const meta = document.createElement('p');
+      const title = document.createElement('h2');
+      const description = document.createElement('p');
+      const tags = document.createElement('p');
+
+      item.className = 'result';
+      link.className = 'result-link';
+      link.href = article.href;
+      meta.className = 'meta';
+      meta.textContent = formatDate(article.publishedAt);
+      title.textContent = article.title;
+      description.className = 'description';
+      description.textContent = article.description;
+      tags.className = 'tags';
+      tags.textContent = article.tags.map((tag) => `#${tag}`).join('  ');
+      link.append(meta, title, description, tags);
+      item.append(link);
+      results.append(item);
+    }
+  }
+
+  fetch('/search.json')
+    .then((response) => response.ok ? response.json() : Promise.reject(new Error('索引载入失败')))
+    .then((data: Article[]) => {
+      articles = data;
+      showResults();
+      input.focus();
+    })
+    .catch(() => { status.textContent = '搜索索引暂时无法载入，请稍后重试。'; });
+
+  input.addEventListener('input', showResults);
+</script>
+
+<style>
+  .search-page { min-height: 55vh; padding-top: 5rem; }
+  .eyebrow { color: var(--accent); font: 700 .72rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; }
+  h1 { font-size: clamp(2.8rem, 7vw, 4.5rem); font-weight: 500; letter-spacing: -.07em; line-height: 1; margin: 1rem 0 2.5rem; }
+  .search-box { align-items: center; border-bottom: 2px solid var(--ink); display: flex; gap: .85rem; padding: 0 0 .85rem; }
+  .search-box svg { fill: none; flex: 0 0 auto; height: 1.4rem; stroke: var(--accent); stroke-linecap: round; stroke-width: 1.8; width: 1.4rem; }
+  input { background: transparent; border: 0; color: var(--ink); font: 1.25rem ui-sans-serif, system-ui, sans-serif; min-width: 0; outline: 0; padding: 0; width: 100%; }
+  input::placeholder { color: #a7a89f; }
+  .status { color: var(--muted); font: .85rem ui-sans-serif, system-ui, sans-serif; margin: 1.25rem 0; }
+  .results { border-top: 1px solid var(--line); }
+  .result { border-bottom: 1px solid var(--line); }
+  .result-link { display: block; padding: 1.55rem 0; text-decoration: none; }
+  .meta, .tags { color: var(--muted); font: .76rem ui-sans-serif, system-ui, sans-serif; margin: 0; }
+  h2 { font-size: 1.35rem; font-weight: 550; letter-spacing: -.035em; margin: .35rem 0; }
+  .description { color: var(--muted); line-height: 1.6; margin: 0 0 .6rem; }
+  .tags { color: var(--accent); }
+</style>

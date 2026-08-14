@@ -32,6 +32,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       <nav aria-label="主导航">
         <a href="/">文章</a>
         <a href="/about/">关于</a>
+        <a class="search-link" href="/search/" aria-label="搜索文章">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+          搜索
+        </a>
       </nav>
     </header>
     <main>
@@ -72,6 +76,8 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   .brand span { color: var(--accent); }
   nav { display: flex; gap: 1.25rem; font-size: .9rem; }
   nav a { text-decoration: none; }
+  .search-link { align-items: center; display: inline-flex; gap: .3rem; }
+  .search-link svg { fill: none; height: .9rem; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; width: .9rem; }
   footer {
     display: flex;
     justify-content: space-between;
