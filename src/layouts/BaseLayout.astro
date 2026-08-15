@@ -40,10 +40,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       <nav aria-label="主导航">
         <a href="/">文章</a>
         <a href="/about/">关于</a>
-        <a class="search-link" href="/search/" aria-label="搜索文章">
+        <button class="search-link search-trigger" type="button" aria-haspopup="dialog" aria-controls="site-search">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
           搜索
-        </a>
+        </button>
         <details class="contact-menu">
           <summary>联系 <span aria-hidden="true">+</span></summary>
           <div class="contact-popover">
@@ -68,6 +68,21 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <footer>
       <p>© {new Date().getFullYear()} 章徳川 · 写给好奇心</p>
     </footer>
+    <dialog id="site-search" class="search-modal" aria-label="搜索文章">
+      <section class="search-panel">
+        <div class="search-panel-inner">
+          <div class="quick-search-form">
+            <label class="quick-search-box" for="quick-search-input">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+              <input id="quick-search-input" type="search" placeholder="搜索标题、正文或标签" autocomplete="off" />
+            </label>
+            <button class="quick-search-close" type="button" aria-label="关闭搜索">×</button>
+          </div>
+          <p class="quick-search-status" aria-live="polite">输入关键词，搜索历史文章</p>
+          <div class="quick-search-results"></div>
+        </div>
+      </section>
+    </dialog>
     <div class="reading-progress" aria-hidden="true"><span></span></div>
     <button class="back-to-top" type="button" aria-label="返回顶部" hidden>↑</button>
     <Analytics />
@@ -103,6 +118,119 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       topButton?.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
       window.addEventListener('scroll', updateScrollUI, { passive: true });
       updateScrollUI();
+
+      type Article = {
+        title: string;
+        description: string;
+        tags: string[];
+        publishedAt: string;
+        href: string;
+        content: string;
+      };
+
+      const searchTrigger = document.querySelector<HTMLButtonElement>('.search-trigger');
+      const searchDialog = document.querySelector<HTMLDialogElement>('.search-modal');
+      const searchInput = document.querySelector<HTMLInputElement>('#quick-search-input');
+      const searchStatus = document.querySelector<HTMLElement>('.quick-search-status');
+      const searchResults = document.querySelector<HTMLElement>('.quick-search-results');
+      const searchClose = document.querySelector<HTMLButtonElement>('.quick-search-close');
+      let articles: Article[] = [];
+      let searchIndexLoaded = false;
+
+      const normalizeSearchText = (text: string) => text
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+        .replace(/[#>*_`~()[\]]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .toLocaleLowerCase();
+
+      const formatSearchDate = (date: string) => new Intl.DateTimeFormat('zh-CN', {
+        year: 'numeric', month: 'long', day: 'numeric',
+      }).format(new Date(date));
+
+      const renderSearchResults = () => {
+        if (!searchInput || !searchStatus || !searchResults) return;
+
+        const query = normalizeSearchText(searchInput.value);
+        searchResults.replaceChildren();
+
+        if (!query) {
+          searchStatus.textContent = searchIndexLoaded
+            ? `共 ${articles.length} 篇文章。输入关键词开始搜索。`
+            : '正在载入文章…';
+          return;
+        }
+
+        const terms = query.split(' ').filter(Boolean);
+        const matches = articles
+          .map((article) => {
+            const title = normalizeSearchText(article.title);
+            const description = normalizeSearchText(article.description);
+            const tags = normalizeSearchText(article.tags.join(' '));
+            const content = normalizeSearchText(article.content);
+            const searchable = `${title} ${description} ${tags} ${content}`;
+            if (!terms.every((term) => searchable.includes(term))) return null;
+
+            const score = terms.reduce((total, term) => total
+              + (title.includes(term) ? 12 : 0)
+              + (description.includes(term) ? 6 : 0)
+              + (tags.includes(term) ? 4 : 0)
+              + (content.includes(term) ? 1 : 0), 0);
+            return { article, score };
+          })
+          .filter((match): match is { article: Article; score: number } => match !== null)
+          .sort((a, b) => b.score - a.score || b.article.publishedAt.localeCompare(a.article.publishedAt));
+
+        searchStatus.textContent = matches.length ? `找到 ${matches.length} 篇相关文章` : '没有找到相关文章';
+        matches.forEach(({ article }) => {
+          const link = document.createElement('a');
+          const meta = document.createElement('p');
+          const title = document.createElement('h2');
+          const description = document.createElement('p');
+          const tags = document.createElement('p');
+
+          link.className = 'quick-search-result';
+          link.href = article.href;
+          meta.className = 'quick-search-meta';
+          meta.textContent = formatSearchDate(article.publishedAt);
+          title.textContent = article.title;
+          description.className = 'quick-search-description';
+          description.textContent = article.description;
+          tags.className = 'quick-search-tags';
+          tags.textContent = article.tags.map((tag) => `#${tag}`).join('  ');
+          link.append(meta, title, description, tags);
+          searchResults.append(link);
+        });
+      };
+
+      const loadSearchIndex = async () => {
+        if (searchIndexLoaded) return;
+
+        try {
+          const response = await fetch('/search.json');
+          if (!response.ok) throw new Error('索引载入失败');
+          articles = await response.json() as Article[];
+          searchIndexLoaded = true;
+          renderSearchResults();
+        } catch {
+          if (searchStatus) searchStatus.textContent = '搜索索引暂时无法载入，请稍后重试。';
+        }
+      };
+
+      searchTrigger?.addEventListener('click', () => {
+        if (!searchDialog || !searchInput) return;
+        searchDialog.showModal();
+        searchInput.focus();
+        void loadSearchIndex();
+      });
+      searchInput?.addEventListener('input', renderSearchResults);
+      searchClose?.addEventListener('click', () => searchDialog?.close());
+      searchDialog?.addEventListener('click', (event) => {
+        if (event.target === searchDialog) searchDialog.close();
+      });
+      searchDialog?.addEventListener('close', () => searchTrigger?.focus());
     </script>
   </body>
 </html>
@@ -136,7 +264,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   .brand span { color: var(--accent); }
   nav { align-items: center; display: flex; gap: 1.25rem; font-size: .9rem; }
   nav a { text-decoration: none; }
-  .search-link { align-items: center; display: inline-flex; gap: .3rem; }
+  .search-link { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: inline-flex; font: inherit; gap: .3rem; padding: 0; }
   .search-link svg { fill: none; height: .9rem; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; width: .9rem; }
   .contact-menu { position: relative; }
   .contact-menu summary { cursor: pointer; list-style: none; }
@@ -150,6 +278,25 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   .contact-popover a { display: flex; flex-direction: column; gap: .15rem; padding: .7rem 0; text-decoration: none; }
   .contact-popover a:hover { color: var(--paper); }
   .contact-popover small { color: #bfc0b8; font-size: .72rem; }
+  .search-modal { background: transparent; border: 0; height: 100dvh; margin: 0; max-height: none; max-width: none; padding: 0; width: 100vw; }
+  .search-modal::backdrop { background: rgb(32 34 31 / 28%); backdrop-filter: blur(3px); }
+  .search-panel { background: var(--paper); min-height: 100%; overflow-y: auto; padding: clamp(2.25rem, 7vw, 5rem) 0; }
+  .search-panel-inner { margin: 0 auto; width: min(100% - 5rem, 1500px); }
+  .quick-search-form { align-items: center; border-bottom: 2px solid var(--ink); display: flex; gap: 1rem; padding-bottom: .9rem; }
+  .quick-search-box { align-items: center; display: flex; flex: 1; gap: 1rem; }
+  .quick-search-box svg { fill: none; flex: 0 0 auto; height: 2rem; stroke: var(--accent); stroke-linecap: round; stroke-width: 1.8; width: 2rem; }
+  .quick-search-box input { background: transparent; border: 0; color: var(--ink); font: clamp(1.45rem, 3vw, 2rem) ui-sans-serif, system-ui, sans-serif; min-width: 0; outline: 0; padding: 0; width: 100%; }
+  .quick-search-box input::placeholder { color: #a7a89f; }
+  .quick-search-close { background: transparent; border: 0; color: var(--muted); cursor: pointer; font: 2rem/1 ui-sans-serif, system-ui, sans-serif; padding: 0 .1rem .15rem; }
+  .quick-search-close:hover { color: var(--accent); }
+  .quick-search-status { color: var(--muted); font: .85rem ui-sans-serif, system-ui, sans-serif; margin: 1.35rem 0; }
+  .quick-search-results { border-top: 1px solid var(--line); max-width: 760px; }
+  .quick-search-result { border-bottom: 1px solid var(--line); display: block; padding: 1.4rem 0; text-decoration: none; }
+  .quick-search-result:hover h2 { color: var(--accent); }
+  .quick-search-meta, .quick-search-tags { color: var(--muted); font: .76rem ui-sans-serif, system-ui, sans-serif; margin: 0; }
+  .quick-search-result h2 { font-size: 1.35rem; font-weight: 550; letter-spacing: -.035em; margin: .35rem 0; transition: color .15s ease; }
+  .quick-search-description { color: var(--muted); line-height: 1.6; margin: 0 0 .6rem; }
+  .quick-search-tags { color: var(--accent); }
   @keyframes menu-in { from { opacity: 0; transform: translateY(-.35rem); } to { opacity: 1; transform: translateY(0); } }
   footer {
     display: flex;
@@ -172,5 +319,9 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     .site-header, main, footer { width: min(100% - 2rem, 760px); }
     footer { align-items: flex-start; gap: .75rem; flex-direction: column; }
     .back-to-top { bottom: 1rem; right: 1rem; }
+    .search-panel { padding-top: 2rem; }
+    .search-panel-inner { width: min(100% - 2rem, 1500px); }
+    .quick-search-form, .quick-search-box { gap: .7rem; }
+    .quick-search-box svg { height: 1.55rem; width: 1.55rem; }
   }
 </style>
