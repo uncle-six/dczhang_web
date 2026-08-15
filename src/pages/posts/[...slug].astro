@@ -29,6 +29,12 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
     </header>
     <div class="prose" data-reveal style="--reveal-delay: 100ms"><Content /></div>
   </article>
+
+  <dialog class="image-lightbox" aria-label="图片预览">
+    <button class="lightbox-close" type="button" aria-label="关闭图片预览">×</button>
+    <img class="lightbox-image" src="" alt="" />
+    <p class="lightbox-caption"></p>
+  </dialog>
 </BaseLayout>
 
 <style>
@@ -45,8 +51,61 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   .prose :global(a) { color: var(--accent); }
   .prose :global(code) { background: #eceae1; border-radius: 3px; font: .88em ui-monospace, monospace; padding: .1em .3em; }
   .prose :global(blockquote) { border-left: 2px solid var(--accent); color: var(--muted); margin: 2rem 0; padding-left: 1.2rem; }
-  .prose :global(img) { border-radius: 4px; display: block; height: auto; margin: 2rem 0; max-width: 100%; }
+  .prose :global(img) { border-radius: 4px; cursor: zoom-in; display: block; height: auto; margin: 2rem 0; max-width: 100%; transition: filter .2s ease, transform .2s ease; }
+  .prose :global(img:hover) { filter: brightness(.96); transform: scale(1.01); }
+  .prose :global(img:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; }
   .prose :global(figure) { margin: 2rem 0; }
   .prose :global(figure img) { margin: 0; }
   .prose :global(figcaption) { color: var(--muted); font: .78rem ui-sans-serif, system-ui, sans-serif; line-height: 1.6; margin-top: .65rem; text-align: center; }
+  .image-lightbox { background: transparent; border: 0; height: 100dvh; margin: 0; max-height: none; max-width: none; padding: 2rem; width: 100vw; }
+  .image-lightbox::backdrop { background: rgb(15 16 14 / 88%); backdrop-filter: blur(4px); }
+  .lightbox-image { display: block; height: calc(100dvh - 6rem); margin: 0 auto; max-width: min(1100px, 100%); object-fit: contain; width: auto; }
+  .lightbox-caption { color: #f8f7f2; font: .82rem ui-sans-serif, system-ui, sans-serif; margin: .8rem auto 0; max-width: min(1100px, 100%); text-align: center; }
+  .lightbox-close { align-items: center; background: #f8f7f2; border: 0; border-radius: 50%; color: #20221f; cursor: pointer; display: grid; font: 1.7rem/1 ui-sans-serif, system-ui, sans-serif; height: 2.4rem; justify-content: center; padding: 0 0 .15rem; position: fixed; right: 1.25rem; top: 1.25rem; width: 2.4rem; }
+  .lightbox-close:hover { background: var(--accent); color: #fff; }
+  @media (max-width: 600px) {
+    .image-lightbox { padding: 1rem; }
+    .lightbox-image { height: calc(100dvh - 5rem); }
+    .lightbox-close { right: .85rem; top: .85rem; }
+  }
 </style>
+
+<script>
+  const prose = document.querySelector('.prose');
+  const lightbox = document.querySelector('.image-lightbox');
+
+  if (prose instanceof HTMLElement && lightbox instanceof HTMLDialogElement) {
+    const preview = lightbox.querySelector('.lightbox-image');
+    const caption = lightbox.querySelector('.lightbox-caption');
+    const closeButton = lightbox.querySelector('.lightbox-close');
+
+    const openLightbox = (image: HTMLImageElement) => {
+      if (!(preview instanceof HTMLImageElement) || !(caption instanceof HTMLElement)) return;
+
+      preview.src = image.currentSrc || image.src;
+      preview.alt = image.alt;
+      caption.textContent = image.alt;
+      lightbox.showModal();
+    };
+
+    prose.querySelectorAll('img').forEach((image) => {
+      if (!(image instanceof HTMLImageElement) || image.closest('a')) return;
+
+      image.tabIndex = 0;
+      image.setAttribute('role', 'button');
+      image.setAttribute('aria-label', `${image.alt || '图片'}，点击放大预览`);
+      image.addEventListener('click', () => openLightbox(image));
+      image.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openLightbox(image);
+        }
+      });
+    });
+
+    closeButton?.addEventListener('click', () => lightbox.close());
+    lightbox.addEventListener('click', (event) => {
+      if (event.target === lightbox) lightbox.close();
+    });
+  }
+</script>
