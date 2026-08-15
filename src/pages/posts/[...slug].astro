@@ -45,4 +45,8 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   .prose :global(a) { color: var(--accent); }
   .prose :global(code) { background: #eceae1; border-radius: 3px; font: .88em ui-monospace, monospace; padding: .1em .3em; }
   .prose :global(blockquote) { border-left: 2px solid var(--accent); color: var(--muted); margin: 2rem 0; padding-left: 1.2rem; }
+  .prose :global(img) { border-radius: 4px; display: block; height: auto; margin: 2rem 0; max-width: 100%; }
+  .prose :global(figure) { margin: 2rem 0; }
+  .prose :global(figure img) { margin: 0; }
+  .prose :global(figcaption) { color: var(--muted); font: .78rem ui-sans-serif, system-ui, sans-serif; line-height: 1.6; margin-top: .65rem; text-align: center; }
 </style>
