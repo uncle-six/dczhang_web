@@ -19,4 +19,9 @@ export const contacts: Contact[] = [
     href: 'https://github.com/uncle-six',
     external: true,
   },
+  { label: '抖音', 
+    detail: '@老六', 
+    href: 'https://v.douyin.com/Do0IlnHY5jk', 
+    external: true 
+  },
 ];
