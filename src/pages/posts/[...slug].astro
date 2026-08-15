@@ -78,10 +78,14 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
     const preview = lightbox.querySelector('.lightbox-image');
     const caption = lightbox.querySelector('.lightbox-caption');
     const closeButton = lightbox.querySelector('.lightbox-close');
+    let activeImage: HTMLImageElement | undefined;
+    let openedWithKeyboard = false;
 
-    const openLightbox = (image: HTMLImageElement) => {
+    const openLightbox = (image: HTMLImageElement, fromKeyboard = false) => {
       if (!(preview instanceof HTMLImageElement) || !(caption instanceof HTMLElement)) return;
 
+      activeImage = image;
+      openedWithKeyboard = fromKeyboard;
       preview.src = image.currentSrc || image.src;
       preview.alt = image.alt;
       caption.textContent = image.alt;
@@ -98,7 +102,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
       image.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          openLightbox(image);
+          openLightbox(image, true);
         }
       });
     });
@@ -106,6 +110,17 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
     closeButton?.addEventListener('click', () => lightbox.close());
     lightbox.addEventListener('click', (event) => {
       if (event.target === lightbox) lightbox.close();
+    });
+    lightbox.addEventListener('close', () => {
+      const image = activeImage;
+
+      // 鼠标或触摸关闭预览后，不保留图片焦点，避免显示橙色焦点框。
+      if (image && !openedWithKeyboard) {
+        requestAnimationFrame(() => image.blur());
+      }
+
+      activeImage = undefined;
+      openedWithKeyboard = false;
     });
   }
 </script>
