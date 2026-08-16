@@ -1,0 +1,61 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { tagUrl } from '../../utils/tags';
+
+const posts = (await getCollection('posts', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
+
+const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
+  year: 'numeric', month: 'long', day: 'numeric',
+});
+---
+
+<BaseLayout title="文章 · 章徳川" description="章徳川的全部文章。">
+  <section class="page-heading" data-reveal>
+    <p>ARCHIVE</p>
+    <h1>文章</h1>
+    <span>共 {posts.length} 篇</span>
+  </section>
+
+  <section class="post-list" aria-label="全部文章">
+    {posts.map((post, index) => (
+      <article data-reveal style={`--reveal-delay: ${Math.min(index * 70, 280)}ms`}>
+        <div class="post-card">
+          <div class="post-content">
+            <time datetime={post.data.publishedAt.toISOString()}>{formatDate(post.data.publishedAt)}</time>
+            <h2><a href={`/posts/${post.id.replace(/\.md$/, '')}/`}>{post.data.title}</a></h2>
+            <p>{post.data.description}</p>
+            <div class="tags">{post.data.tags.map((tag) => <a href={tagUrl(tag)}>#{tag}</a>)}</div>
+          </div>
+          <a class="arrow" href={`/posts/${post.id.replace(/\.md$/, '')}/`} aria-label={`阅读文章：${post.data.title}`}>↗</a>
+        </div>
+      </article>
+    ))}
+  </section>
+</BaseLayout>
+
+<style>
+  .page-heading { border-bottom: 1px solid var(--ink); padding: 4.5rem 0 1.5rem; }
+  .page-heading p, .page-heading span, time, .tags { font: .76rem ui-sans-serif, system-ui, sans-serif; }
+  .page-heading p { color: var(--accent); font-weight: 700; letter-spacing: .12em; margin: 0 0 .75rem; }
+  h1 { font-size: clamp(3.2rem, 8vw, 5rem); font-weight: 500; letter-spacing: -.075em; line-height: 1; margin: 0 0 1.1rem; }
+  .page-heading span, time { color: var(--muted); }
+  .post-list article { border-bottom: 1px solid var(--line); }
+  .post-card { align-items: center; display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr) auto; padding: 2rem 0; transition: transform .2s ease; }
+  .post-content { min-width: 0; }
+  h2 { font-size: clamp(1.65rem, 3.4vw, 2.25rem); font-weight: 550; letter-spacing: -.05em; line-height: 1.18; margin: .45rem 0 .7rem; }
+  h2 a, .tags a { text-decoration: none; }
+  article p { color: var(--muted); font-size: 1rem; line-height: 1.75; margin: 0 0 1rem; max-width: 42rem; }
+  .tags { color: var(--muted); display: flex; flex-wrap: wrap; gap: .4rem .8rem; }
+  .tags a { color: var(--accent); }
+  .arrow { align-items: center; border: 1px solid var(--line); border-radius: 999px; display: grid; flex: 0 0 auto; font: 1.25rem ui-sans-serif, system-ui, sans-serif; height: 2.5rem; justify-content: center; text-decoration: none; transition: background-color .15s ease, color .15s ease; width: 2.5rem; }
+  .arrow:hover { background: var(--accent); border-color: var(--accent); color: white; }
+  @media (hover: hover) { .post-card:hover { transform: translateX(.35rem); } .post-card:hover .arrow { background: var(--accent); border-color: var(--accent); color: white; } }
+  @media (max-width: 600px) {
+    .page-heading { padding-top: 3.5rem; }
+    .post-card { gap: 1rem; padding: 1.6rem 0; }
+    h2 { font-size: 1.55rem; }
+    .arrow { height: 2.25rem; width: 2.25rem; }
+  }
+</style>
