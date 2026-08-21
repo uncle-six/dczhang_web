@@ -241,7 +241,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     --muted: #73766e;
     --paper: #f8f7f2;
     --line: #deddd5;
-    --accent: #3f718f;
+    --accent: #2478c4;
     font-family: ui-serif, Georgia, Cambria, "Noto Serif SC", "Songti SC", serif;
     color: var(--ink);
     background: var(--paper);
@@ -310,7 +310,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   footer p { margin: 0; }
   .reading-progress { background: transparent; height: 3px; inset: 0 0 auto; pointer-events: none; position: fixed; transform-origin: left; width: 100%; z-index: 10; }
   .reading-progress span { background: var(--accent); display: block; height: 100%; transform: scaleX(var(--reading-progress, 0)); transform-origin: left; }
-  .back-to-top { align-items: center; background: var(--accent); border: 0; border-radius: 999px; bottom: 1.5rem; box-shadow: 0 .45rem 1.2rem rgb(63 113 143 / 28%); color: var(--paper); cursor: pointer; display: grid; font: 1.2rem ui-sans-serif, system-ui, sans-serif; height: 2.65rem; justify-content: center; position: fixed; right: max(1.5rem, calc((100vw - 820px) / 2)); transition: filter .15s ease, transform .15s ease; width: 2.65rem; z-index: 5; }
+  .back-to-top { align-items: center; background: var(--accent); border: 0; border-radius: 999px; bottom: 1.5rem; box-shadow: 0 .45rem 1.2rem rgb(36 120 196 / 28%); color: var(--paper); cursor: pointer; display: grid; font: 1.2rem ui-sans-serif, system-ui, sans-serif; height: 2.65rem; justify-content: center; position: fixed; right: max(1.5rem, calc((100vw - 820px) / 2)); transition: filter .15s ease, transform .15s ease; width: 2.65rem; z-index: 5; }
   .back-to-top:hover { filter: brightness(.88); transform: translateY(-.2rem); }
   .back-to-top:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .motion-ready [data-reveal] { opacity: 0; transform: translateY(1rem); transition: opacity .6s ease var(--reveal-delay, 0ms), transform .6s cubic-bezier(.2,.65,.25,1) var(--reveal-delay, 0ms); }
