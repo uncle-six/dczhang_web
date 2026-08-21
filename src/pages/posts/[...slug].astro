@@ -114,7 +114,7 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
     lightbox.addEventListener('close', () => {
       const image = activeImage;
 
-      // 鼠标或触摸关闭预览后，不保留图片焦点，避免显示橙色焦点框。
+      // 鼠标或触摸关闭预览后，不保留图片焦点，避免显示焦点边框。
       if (image && !openedWithKeyboard) {
         requestAnimationFrame(() => image.blur());
       }
