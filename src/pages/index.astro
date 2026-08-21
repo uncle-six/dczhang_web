@@ -5,6 +5,8 @@ import { tagUrl } from '../utils/tags';
 
 const posts = (await getCollection('posts', ({ data }) => !data.draft))
   .sort((a, b) => b.data.publishedAt.valueOf() - a.data.publishedAt.valueOf());
+const allTags = [...new Set(posts.flatMap((post) => post.data.tags))]
+  .sort((a, b) => a.localeCompare(b, 'zh-CN'));
 
 const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   year: 'numeric', month: 'long', day: 'numeric',
@@ -25,6 +27,11 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
       <h2 id="posts-heading">最新文章</h2>
       <span>{posts.length} 篇</span>
     </div>
+    <nav class="tag-filter" aria-label="按标签浏览文章" data-reveal style="--reveal-delay: 70ms">
+      <span>按标签浏览</span>
+      <a class="active" href="/posts/">全部</a>
+      {allTags.map((tag) => <a href={tagUrl(tag)}>#{tag}</a>)}
+    </nav>
     <div class="post-list">
       {posts.map((post, index) => (
         <article data-reveal style={`--reveal-delay: ${Math.min(index * 70, 280)}ms`}>
@@ -52,6 +59,11 @@ const formatDate = (date: Date) => date.toLocaleDateString('zh-CN', {
   .section-title { display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--ink); }
   h2 { font: 700 .78rem ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; margin: 0 0 .8rem; }
   .section-title span { color: var(--muted); font: .78rem ui-sans-serif, system-ui, sans-serif; }
+  .tag-filter { align-items: center; display: flex; flex-wrap: wrap; gap: .55rem; padding: 1rem 0 .35rem; }
+  .tag-filter span { color: var(--muted); font: .74rem ui-sans-serif, system-ui, sans-serif; margin-right: .15rem; }
+  .tag-filter a { border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: .74rem ui-sans-serif, system-ui, sans-serif; padding: .3rem .6rem; text-decoration: none; transition: background-color .15s ease, border-color .15s ease, color .15s ease; }
+  .tag-filter a:hover { border-color: var(--accent); color: var(--accent); }
+  .tag-filter a.active { background: var(--accent); border-color: var(--accent); color: white; }
   .post-list article { border-bottom: 1px solid var(--line); }
   .post-card { align-items: center; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2rem; padding: 2rem 0; transition: transform .2s ease; }
   .post-content { min-width: 0; }
