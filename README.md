@@ -38,6 +38,17 @@ tags: [随笔]
 4. 首次部署成功后，在 Pages 项目的 **Custom domains** 中添加 `dczhang.me` 和 `www.dczhang.me`，按 Cloudflare 提示配置域名 DNS。
 5. 建议将 `www.dczhang.me` 重定向到 `dczhang.me`，把根域名作为唯一公开地址。
 
+### 配置刷题进度数据库
+
+线上站点部署在 Vercel，跨设备进度使用 Upstash Redis：
+
+1. 打开 Vercel 项目的 **Storage**，从 Marketplace 添加 **Upstash Redis**。
+2. 创建免费数据库并连接到当前项目，环境选择 Production、Preview 和 Development。
+3. 确认项目环境变量中已经出现 `UPSTASH_REDIS_REST_URL` 和 `UPSTASH_REDIS_REST_TOKEN`。通过 Vercel 自定义前缀连接时，接口也兼容 `UPSTASH_REDIS_REST_KV_REST_API_URL` 和 `UPSTASH_REDIS_REST_KV_REST_API_TOKEN`。
+4. 重新部署项目。
+
+部署完成后，`/api/quiz-progress` 由 `api/quiz-progress.js` 提供。用户首次生成同步码，在其他设备输入相同同步码后，两套题库会自动读写同一份云端进度。接口也兼容旧版 Vercel KV 的 `KV_REST_API_URL` 和 `KV_REST_API_TOKEN` 变量名。
+
 ## 部署到 Vercel（备选）
 
 导入 GitHub 仓库，Vercel 会自动识别 Astro。然后在 Project Settings → Domains 添加 `dczhang.me` 和 `www.dczhang.me`，根据它给出的 DNS 记录完成配置。

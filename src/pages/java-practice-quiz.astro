@@ -1,0 +1,13 @@
+---
+import QuizApp from '../components/QuizApp.astro';
+import { practiceCategoryCounts, practiceQuestions } from '../data/javaPracticeQuestions';
+---
+
+<QuizApp
+  bank="practice"
+  questions={practiceQuestions}
+  categoryCounts={practiceCategoryCounts}
+  title="Java 实践认证 · 200 题专项练习"
+  heading="把框架原理，练成实战判断。"
+  description="依照 Java 实践认证考纲整理的 200 道单选题，覆盖 Spring、数据库、中间件与架构设计。"
+/>

@@ -1,0 +1,565 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import type { QuizQuestion } from '../data/javaQuestions';
+
+interface Props {
+  bank: 'foundation' | 'practice';
+  questions: QuizQuestion[];
+  categoryCounts: { name: string; count: number }[];
+  title: string;
+  heading: string;
+  description: string;
+}
+
+const { bank, questions, categoryCounts, title, heading, description } = Astro.props;
+---
+
+<BaseLayout
+  wide
+  title={title}
+  description={description}
+>
+  <div class="quiz-shell">
+    <header class="quiz-hero">
+      <div>
+        <p class="kicker">JAVA CERTIFICATION · {questions.length} QUESTIONS</p>
+        <h1>{heading}</h1>
+        <p class="hero-copy">严格依照对应考纲编排。每题作答后立即查看四个选项的逐项解析，进度与错题自动保存在当前设备。</p>
+      </div>
+      <div class="hero-score" aria-label="总体练习进度">
+        <span id="hero-progress">0%</span>
+        <small>总体进度</small>
+      </div>
+    </header>
+
+    <section class="dashboard" aria-label="练习概览">
+      <div class="stat"><span id="done-count">0</span><small>已完成</small></div>
+      <div class="stat"><span id="accuracy">—</span><small>正确率</small></div>
+      <div class="stat"><span id="wrong-count">0</span><small>错题</small></div>
+      <div class="stat"><span id="streak-count">0</span><small>连续答对</small></div>
+    </section>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <nav class="bank-switch" aria-label="切换题库">
+          <a class:list={{ active: bank === 'foundation' }} href="/java-quiz/">Java 基础 · 300</a>
+          <a class:list={{ active: bank === 'practice' }} href="/java-practice-quiz/">Java 实践 · 200</a>
+        </nav>
+        <div class="panel-head"><span>练习设置</span><button id="reset-button" class="text-button" type="button">重置记录</button></div>
+        <div class="mode-switch" role="group" aria-label="练习模式">
+          <button class="mode active" data-mode="sequence" type="button">顺序练习</button>
+          <button class="mode" data-mode="random" type="button">随机练习</button>
+          <button class="mode" data-mode="wrong" type="button">只看错题</button>
+        </div>
+        <label class="select-label" for="category-select">考试模块</label>
+        <select id="category-select">
+          <option value="全部">全部模块 · {questions.length} 题</option>
+          {categoryCounts.map(({ name, count }) => <option value={name}>{name} · {count} 题</option>)}
+        </select>
+        <div class="syllabus">
+          <p>考纲题量分配</p>
+          {categoryCounts.map(({ name, count }) => (
+            <div class="weight-row">
+              <span>{name}</span><i><b style={`width:${count / questions.length * 100}%`}></b></i><small>{Math.round(count / questions.length * 100)}%</small>
+            </div>
+          ))}
+        </div>
+        <button id="jump-button" class="outline-button" type="button">题号导航 <span>⌘ K</span></button>
+        <button id="sync-button" class="sync-button" type="button">
+          <span><b>↻</b> 云端同步</span><small id="sync-state">未连接</small>
+        </button>
+      </aside>
+
+      <section class="question-card" aria-live="polite">
+        <div class="question-topline">
+          <div class="badges"><span id="category-badge">Java</span><span id="difficulty-badge">基础</span></div>
+          <span id="question-position">1 / 300</span>
+        </div>
+        <div class="progress-track"><span id="question-progress"></span></div>
+        <p id="topic-label" class="topic-label">知识点</p>
+        <h2 id="question-stem">正在载入题目…</h2>
+        <div id="options" class="options"></div>
+        <div id="explanation" class="explanation" hidden>
+          <div class="result-line"><span id="result-icon"></span><strong id="result-title"></strong></div>
+          <div id="option-analysis" class="option-analysis"></div>
+          <div class="takeaway"><span>一句记住</span><p id="takeaway-text"></p></div>
+        </div>
+        <div class="question-actions">
+          <button id="prev-button" class="secondary-button" type="button">← 上一题</button>
+          <button id="favorite-button" class="secondary-button" type="button" aria-pressed="false">☆ 收藏</button>
+          <button id="next-button" class="primary-button" type="button">下一题 →</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <dialog id="navigator" class="navigator">
+    <div class="nav-dialog-head"><div><p>题号导航</p><small>点击任意题目快速跳转</small></div><button id="close-nav" type="button" aria-label="关闭">×</button></div>
+    <div class="legend"><span><i class="done"></i>已答</span><span><i class="wrong"></i>错题</span><span><i></i>未答</span></div>
+    <div id="number-grid" class="number-grid"></div>
+  </dialog>
+
+  <dialog id="sync-dialog" class="sync-dialog">
+    <div class="nav-dialog-head">
+      <div><p>云端同步</p><small>手机和电脑使用同一个同步码</small></div>
+      <button id="close-sync" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="sync-status"><i id="sync-dot"></i><span id="sync-message">尚未连接云端</span></div>
+    <label for="sync-code-input">同步码</label>
+    <input id="sync-code-input" type="text" inputmode="text" autocomplete="off" maxlength="14" placeholder="例如 ABCD-EFGH-IJKL" />
+    <p class="sync-help">第一次使用请生成同步码；在另一台设备输入同一个码，即可自动同步两套题库的进度。</p>
+    <div class="sync-actions">
+      <button id="create-sync-code" class="secondary-button" type="button">生成新同步码</button>
+      <button id="connect-sync" class="primary-button" type="button">连接并同步</button>
+    </div>
+    <div class="sync-utilities">
+      <button id="copy-sync-code" type="button">复制同步码</button>
+      <button id="disconnect-sync" type="button">断开此设备</button>
+    </div>
+  </dialog>
+
+  <script define:vars={{ questions, bank }}>
+    const STORE_KEY = `java-cert-quiz-${bank}-v1`;
+    const SYNC_KEY_STORAGE = 'java-cert-sync-code-v1';
+    const state = {
+      answers: {},
+      favorites: [],
+      currentId: 1,
+      mode: 'sequence',
+      category: '全部',
+      streak: 0,
+    };
+    let syncKey = localStorage.getItem(SYNC_KEY_STORAGE) || '';
+    let syncReady = false;
+    let syncTimer;
+    let syncBusy = false;
+    let syncDirty = false;
+
+    try { Object.assign(state, JSON.parse(localStorage.getItem(STORE_KEY) || '{}')); } catch {}
+
+    const $ = (selector) => document.querySelector(selector);
+    const optionLetters = ['A', 'B', 'C', 'D'];
+    let activeQuestions = [];
+    let currentIndex = 0;
+
+    const normalizeSyncCode = (value) => value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+    const formatSyncCode = (value) => normalizeSyncCode(value).replace(/(.{4})(?=.)/g, '$1-');
+    const cloudSnapshot = () => ({
+      answers: state.answers,
+      favorites: state.favorites,
+      currentId: state.currentId,
+      streak: state.streak,
+    });
+
+    function setSyncStatus(message, tone = '') {
+      $('#sync-state').textContent = message;
+      $('#sync-message').textContent = message;
+      $('#sync-dot').className = tone;
+    }
+
+    function renderSyncControls() {
+      $('#sync-code-input').value = formatSyncCode(syncKey);
+      $('#copy-sync-code').hidden = !syncKey;
+      $('#disconnect-sync').hidden = !syncKey;
+      if (!syncKey) setSyncStatus('未连接');
+    }
+
+    async function pushCloud() {
+      if (!syncReady || !syncKey) return;
+      if (syncBusy) { syncDirty = true; return; }
+      syncBusy = true;
+      syncDirty = false;
+      setSyncStatus('正在同步', 'working');
+      try {
+        const response = await fetch('/api/quiz-progress', {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ key: syncKey, bank, payload: cloudSnapshot() }),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        setSyncStatus('已同步', 'success');
+      } catch {
+        setSyncStatus('同步失败', 'error');
+      } finally {
+        syncBusy = false;
+        if (syncDirty) {
+          clearTimeout(syncTimer);
+          syncTimer = setTimeout(pushCloud, 100);
+        }
+      }
+    }
+
+    function scheduleCloudSave() {
+      if (!syncReady || !syncKey) return;
+      clearTimeout(syncTimer);
+      syncDirty = true;
+      setSyncStatus('等待同步', 'working');
+      syncTimer = setTimeout(pushCloud, 500);
+    }
+
+    const save = () => {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+      scheduleCloudSave();
+    };
+
+    async function pullCloud() {
+      if (!syncKey || syncBusy) return;
+      syncBusy = true;
+      setSyncStatus('正在读取', 'working');
+      try {
+        const response = await fetch(`/api/quiz-progress?key=${encodeURIComponent(syncKey)}&bank=${encodeURIComponent(bank)}`, { cache: 'no-store' });
+        if (response.status === 404) {
+          syncReady = true;
+          syncBusy = false;
+          syncDirty = true;
+          await pushCloud();
+          return;
+        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        const remote = result.payload || {};
+        const hadLocalAnswers = Object.keys(state.answers || {}).length > 0;
+        state.answers = { ...(remote.answers || {}), ...(state.answers || {}) };
+        state.favorites = [...new Set([...(remote.favorites || []), ...(state.favorites || [])])];
+        if (!hadLocalAnswers && remote.currentId) state.currentId = remote.currentId;
+        state.streak = Math.max(state.streak || 0, remote.streak || 0);
+        syncReady = true;
+        localStorage.setItem(STORE_KEY, JSON.stringify(state));
+        filterQuestions();
+        setSyncStatus('已同步', 'success');
+      } catch {
+        syncReady = false;
+        setSyncStatus('同步失败', 'error');
+      } finally {
+        syncBusy = false;
+      }
+    }
+    const answeredIds = () => Object.keys(state.answers).map(Number);
+    const wrongIds = () => answeredIds().filter((id) => state.answers[id] !== questions.find((q) => q.id === id)?.answer);
+
+    function filterQuestions(keepCurrent = true) {
+      activeQuestions = questions.filter((q) => state.category === '全部' || q.category === state.category);
+      if (state.mode === 'wrong') activeQuestions = activeQuestions.filter((q) => wrongIds().includes(q.id));
+      if (state.mode === 'random') activeQuestions = [...activeQuestions].sort(() => Math.random() - .5);
+      const found = keepCurrent ? activeQuestions.findIndex((q) => q.id === state.currentId) : -1;
+      currentIndex = found >= 0 ? found : 0;
+      if (activeQuestions[0]) state.currentId = activeQuestions[currentIndex].id;
+      render();
+    }
+
+    function renderStats() {
+      const done = answeredIds().length;
+      const wrong = wrongIds().length;
+      $('#done-count').textContent = String(done);
+      $('#wrong-count').textContent = String(wrong);
+      $('#accuracy').textContent = done ? `${Math.round((done - wrong) / done * 100)}%` : '—';
+      $('#streak-count').textContent = String(state.streak || 0);
+      $('#hero-progress').textContent = `${Math.round(done / questions.length * 100)}%`;
+    }
+
+    function renderEmpty() {
+      $('#question-stem').textContent = state.mode === 'wrong' ? '太棒了，当前范围没有错题。' : '当前范围没有题目。';
+      $('#topic-label').textContent = '练习完成';
+      $('#options').replaceChildren();
+      $('#explanation').hidden = true;
+      $('#question-position').textContent = `0 / 0`;
+      $('#question-progress').style.width = '0%';
+    }
+
+    function render() {
+      renderStats();
+      if (!activeQuestions.length) return renderEmpty();
+      const q = activeQuestions[currentIndex];
+      state.currentId = q.id;
+      const selected = state.answers[q.id];
+      $('#category-badge').textContent = q.category;
+      $('#difficulty-badge').textContent = q.difficulty;
+      $('#topic-label').textContent = `知识点 · ${q.topic}`;
+      $('#question-stem').textContent = q.stem;
+      $('#question-position').textContent = `${currentIndex + 1} / ${activeQuestions.length}`;
+      $('#question-progress').style.width = `${(currentIndex + 1) / activeQuestions.length * 100}%`;
+      $('#prev-button').disabled = currentIndex === 0;
+      const favorite = state.favorites.includes(q.id);
+      $('#favorite-button').textContent = favorite ? '★ 已收藏' : '☆ 收藏';
+      $('#favorite-button').setAttribute('aria-pressed', String(favorite));
+
+      const options = $('#options');
+      options.replaceChildren();
+      q.options.forEach((option, index) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'option';
+        button.disabled = selected !== undefined;
+        if (selected !== undefined) {
+          if (index === q.answer) button.classList.add('correct');
+          if (index === selected && selected !== q.answer) button.classList.add('incorrect');
+        }
+        const letter = document.createElement('span');
+        letter.textContent = optionLetters[index];
+        const text = document.createElement('b');
+        text.textContent = option.text;
+        button.append(letter, text);
+        button.addEventListener('click', () => answer(index));
+        options.append(button);
+      });
+      renderExplanation(q, selected);
+      save();
+    }
+
+    function answer(index) {
+      const q = activeQuestions[currentIndex];
+      if (state.answers[q.id] !== undefined) return;
+      state.answers[q.id] = index;
+      state.streak = index === q.answer ? (state.streak || 0) + 1 : 0;
+      render();
+    }
+
+    function renderExplanation(q, selected) {
+      const box = $('#explanation');
+      if (selected === undefined) { box.hidden = true; return; }
+      box.hidden = false;
+      const correct = selected === q.answer;
+      $('#result-icon').textContent = correct ? '✓' : '!';
+      $('#result-icon').className = correct ? 'success' : 'failure';
+      $('#result-title').textContent = correct ? '回答正确' : `回答错误 · 正确答案 ${optionLetters[q.answer]}`;
+      $('#takeaway-text').textContent = q.takeaway;
+      const analysis = $('#option-analysis');
+      analysis.replaceChildren();
+      q.options.forEach((option, index) => {
+        const row = document.createElement('div');
+        row.className = index === q.answer ? 'analysis-row right' : 'analysis-row';
+        const label = document.createElement('strong');
+        label.textContent = `${optionLetters[index]} · ${index === q.answer ? '正确选项' : '为什么不选'}`;
+        const text = document.createElement('p');
+        text.textContent = option.explanation;
+        row.append(label, text);
+        analysis.append(row);
+      });
+    }
+
+    function move(delta) {
+      if (!activeQuestions.length) return;
+      currentIndex = Math.max(0, Math.min(activeQuestions.length - 1, currentIndex + delta));
+      render();
+      window.scrollTo({ top: Math.max(0, $('.question-card').offsetTop - 90), behavior: 'smooth' });
+    }
+
+    document.querySelectorAll('.mode').forEach((button) => button.addEventListener('click', () => {
+      document.querySelectorAll('.mode').forEach((item) => item.classList.remove('active'));
+      button.classList.add('active');
+      state.mode = button.dataset.mode;
+      filterQuestions(false);
+    }));
+    $('#category-select').value = state.category;
+    $('#category-select').addEventListener('change', (event) => { state.category = event.target.value; filterQuestions(false); });
+    $('#prev-button').addEventListener('click', () => move(-1));
+    $('#next-button').addEventListener('click', () => move(1));
+    $('#favorite-button').addEventListener('click', () => {
+      const id = activeQuestions[currentIndex]?.id;
+      if (!id) return;
+      state.favorites = state.favorites.includes(id) ? state.favorites.filter((item) => item !== id) : [...state.favorites, id];
+      render();
+    });
+    $('#reset-button').addEventListener('click', () => {
+      if (!confirm('确定清空全部答题记录、错题和收藏吗？')) return;
+      state.answers = {}; state.favorites = []; state.currentId = 1; state.streak = 0;
+      filterQuestions(false);
+    });
+
+    const navigator = $('#navigator');
+    function openNavigator() {
+      const grid = $('#number-grid'); grid.replaceChildren();
+      questions.forEach((q) => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.textContent = q.id;
+        if (state.answers[q.id] !== undefined) button.classList.add(state.answers[q.id] === q.answer ? 'done' : 'wrong');
+        button.addEventListener('click', () => {
+          state.category = '全部'; state.mode = 'sequence'; $('#category-select').value = '全部';
+          document.querySelectorAll('.mode').forEach((item) => item.classList.toggle('active', item.dataset.mode === 'sequence'));
+          filterQuestions(false); currentIndex = activeQuestions.findIndex((item) => item.id === q.id); navigator.close(); render();
+        });
+        grid.append(button);
+      });
+      navigator.showModal();
+    }
+    $('#jump-button').addEventListener('click', openNavigator);
+    const syncDialog = $('#sync-dialog');
+    $('#sync-button').addEventListener('click', () => { renderSyncControls(); syncDialog.showModal(); });
+    $('#close-sync').addEventListener('click', () => syncDialog.close());
+    syncDialog.addEventListener('click', (event) => { if (event.target === syncDialog) syncDialog.close(); });
+    $('#sync-code-input').addEventListener('input', (event) => { event.target.value = formatSyncCode(event.target.value); });
+    $('#create-sync-code').addEventListener('click', async () => {
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const bytes = crypto.getRandomValues(new Uint8Array(12));
+      syncKey = [...bytes].map((value) => alphabet[value % alphabet.length]).join('');
+      localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
+      syncReady = true;
+      syncDirty = true;
+      renderSyncControls();
+      await pushCloud();
+    });
+    $('#connect-sync').addEventListener('click', async () => {
+      const value = normalizeSyncCode($('#sync-code-input').value);
+      if (value.length !== 12) { setSyncStatus('请输入 12 位同步码', 'error'); return; }
+      syncKey = value;
+      localStorage.setItem(SYNC_KEY_STORAGE, syncKey);
+      syncReady = false;
+      await pullCloud();
+    });
+    $('#copy-sync-code').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(formatSyncCode(syncKey));
+        setSyncStatus('同步码已复制', 'success');
+      } catch { prompt('请复制同步码：', formatSyncCode(syncKey)); }
+    });
+    $('#disconnect-sync').addEventListener('click', () => {
+      localStorage.removeItem(SYNC_KEY_STORAGE);
+      syncKey = '';
+      syncReady = false;
+      renderSyncControls();
+    });
+    $('#close-nav').addEventListener('click', () => navigator.close());
+    navigator.addEventListener('click', (event) => { if (event.target === navigator) navigator.close(); });
+    window.addEventListener('keydown', (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openNavigator(); }
+      if (!navigator.open && !syncDialog.open && event.key === 'ArrowRight') move(1);
+      if (!navigator.open && !syncDialog.open && event.key === 'ArrowLeft') move(-1);
+    });
+    window.addEventListener('focus', () => { if (syncKey) void pullCloud(); });
+    document.querySelectorAll('.mode').forEach((item) => item.classList.toggle('active', item.dataset.mode === state.mode));
+    renderSyncControls();
+    filterQuestions();
+    if (syncKey) void pullCloud();
+  </script>
+</BaseLayout>
+
+<style>
+  .quiz-shell { padding: 3rem 0 6rem; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .quiz-hero { align-items: end; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3rem; padding: 2.5rem 0 3rem; }
+  .kicker { color: #2f6fed; font-size: .72rem; font-weight: 800; letter-spacing: .16em; margin: 0 0 1rem; }
+  h1 { font-family: ui-serif, "Songti SC", serif; font-size: clamp(2.5rem, 6vw, 4.8rem); font-weight: 500; letter-spacing: -.07em; line-height: 1.04; margin: 0; }
+  .hero-copy { color: #686c72; font-size: 1rem; line-height: 1.8; margin: 1.4rem 0 0; max-width: 43rem; }
+  .hero-score { align-items: center; background: #111927; border-radius: 50%; color: white; display: flex; flex-direction: column; height: 8.8rem; justify-content: center; width: 8.8rem; }
+  .hero-score span { font-size: 2rem; font-weight: 750; }
+  .hero-score small { color: #aeb9ca; font-size: .72rem; margin-top: .25rem; }
+  .dashboard { background: white; border: 1px solid #e3e5e8; border-radius: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 1.25rem; overflow: hidden; }
+  .stat { padding: 1.3rem 1.5rem; }
+  .stat + .stat { border-left: 1px solid #e3e5e8; }
+  .stat span { display: block; font-size: 1.55rem; font-weight: 750; letter-spacing: -.04em; }
+  .stat small { color: #7a7f87; display: block; font-size: .72rem; margin-top: .2rem; }
+  .workspace { align-items: start; display: grid; gap: 1.25rem; grid-template-columns: 250px minmax(0, 1fr); }
+  .sidebar, .question-card { background: white; border: 1px solid #e3e5e8; border-radius: 1rem; }
+  .sidebar { padding: 1.2rem; position: sticky; top: 1rem; }
+  .bank-switch { background: #eef0f4; border-radius: .65rem; display: grid; gap: .2rem; grid-template-columns: 1fr 1fr; margin-bottom: 1.2rem; padding: .25rem; }
+  .bank-switch a { border-radius: .48rem; color: #737983; font-size: .68rem; font-weight: 700; padding: .6rem .35rem; text-align: center; text-decoration: none; }
+  .bank-switch a.active { background: white; box-shadow: 0 1px 4px #13233a14; color: #2f6fed; }
+  .panel-head { align-items: center; display: flex; font-size: .78rem; font-weight: 750; justify-content: space-between; margin-bottom: 1rem; }
+  button, select { font: inherit; }
+  button { cursor: pointer; }
+  .text-button { background: none; border: 0; color: #8b9097; font-size: .7rem; padding: 0; }
+  .text-button:hover { color: #d14343; }
+  .mode-switch { background: #f1f3f6; border-radius: .65rem; display: grid; gap: .25rem; padding: .25rem; }
+  .mode { background: transparent; border: 0; border-radius: .5rem; color: #686d75; font-size: .78rem; padding: .65rem; text-align: left; }
+  .mode.active { background: white; box-shadow: 0 1px 4px #13233a14; color: #16233a; font-weight: 700; }
+  .select-label { color: #8a8f96; display: block; font-size: .68rem; font-weight: 700; margin: 1.25rem 0 .45rem; text-transform: uppercase; }
+  select { background: white; border: 1px solid #dfe2e6; border-radius: .55rem; color: #252a31; padding: .65rem; width: 100%; }
+  .syllabus { border-top: 1px solid #eceef0; margin-top: 1.25rem; padding-top: 1rem; }
+  .syllabus > p { font-size: .72rem; font-weight: 750; margin: 0 0 .8rem; }
+  .weight-row { align-items: center; display: grid; font-size: .66rem; gap: .5rem; grid-template-columns: 3.7rem 1fr 1.7rem; margin: .55rem 0; }
+  .weight-row i { background: #edf0f4; border-radius: 1rem; height: .3rem; overflow: hidden; }
+  .weight-row b { background: #2f6fed; display: block; height: 100%; }
+  .weight-row small { color: #8b9098; text-align: right; }
+  .outline-button { background: white; border: 1px solid #dfe2e6; border-radius: .6rem; color: #4c535d; display: flex; font-size: .74rem; justify-content: space-between; margin-top: 1.2rem; padding: .65rem .75rem; width: 100%; }
+  .outline-button span { color: #969ba2; }
+  .sync-button { align-items: center; background: #172238; border: 1px solid #172238; border-radius: .65rem; color: white; display: flex; justify-content: space-between; margin-top: .55rem; padding: .7rem .75rem; width: 100%; }
+  .sync-button span { align-items: center; display: flex; font-size: .72rem; gap: .4rem; }
+  .sync-button b { color: #8fb5ff; font-size: .9rem; }
+  .sync-button small { color: #aeb9ca; font-size: .62rem; }
+  .question-card { min-height: 580px; padding: clamp(1.3rem, 4vw, 2.7rem); }
+  .question-topline { align-items: center; display: flex; justify-content: space-between; }
+  .badges { display: flex; gap: .45rem; }
+  .badges span { background: #eef4ff; border-radius: 99px; color: #2f6fed; font-size: .68rem; font-weight: 750; padding: .3rem .55rem; }
+  .badges span + span { background: #f3f3f0; color: #777b7f; }
+  #question-position { color: #858a91; font-size: .75rem; }
+  .progress-track { background: #eef0f3; height: 3px; margin: 1rem 0 2.2rem; overflow: hidden; }
+  .progress-track span { background: #2f6fed; display: block; height: 100%; transition: width .25s ease; }
+  .topic-label { color: #7e838a; font-size: .72rem; font-weight: 700; letter-spacing: .04em; margin: 0 0 .6rem; }
+  h2 { color: #161b22; font-family: ui-serif, "Songti SC", serif; font-size: clamp(1.35rem, 3vw, 1.8rem); font-weight: 600; line-height: 1.5; margin: 0 0 1.8rem; white-space: pre-line; }
+  .options { display: grid; gap: .7rem; }
+  .option { align-items: center; background: white; border: 1px solid #dfe2e6; border-radius: .8rem; color: #30353c; display: grid; gap: .9rem; grid-template-columns: 2rem 1fr; padding: .85rem 1rem; text-align: left; transition: border-color .15s, background .15s, transform .15s; width: 100%; }
+  .option:not(:disabled):hover { border-color: #2f6fed; transform: translateY(-1px); }
+  .option span { align-items: center; background: #f1f3f6; border-radius: .45rem; display: flex; font-size: .74rem; font-weight: 800; height: 2rem; justify-content: center; }
+  .option b { font-size: .88rem; font-weight: 550; line-height: 1.5; }
+  .option.correct { background: #f1fbf5; border-color: #55a875; }
+  .option.correct span { background: #258653; color: white; }
+  .option.incorrect { background: #fff4f3; border-color: #d96862; }
+  .option.incorrect span { background: #c94f48; color: white; }
+  .option:disabled { color: inherit; cursor: default; opacity: 1; }
+  .explanation { border-top: 1px solid #e6e8eb; margin-top: 2rem; padding-top: 1.4rem; }
+  .result-line { align-items: center; display: flex; gap: .65rem; margin-bottom: 1rem; }
+  .result-line span { align-items: center; border-radius: 50%; color: white; display: flex; font-size: .8rem; font-weight: 900; height: 1.7rem; justify-content: center; width: 1.7rem; }
+  .result-line .success { background: #258653; } .result-line .failure { background: #c94f48; }
+  .result-line strong { font-size: .92rem; }
+  .option-analysis { display: grid; gap: .65rem; }
+  .analysis-row { background: #f6f7f8; border-radius: .65rem; padding: .8rem 1rem; }
+  .analysis-row.right { background: #eef9f2; }
+  .analysis-row strong { color: #6f757d; font-size: .7rem; }
+  .analysis-row.right strong { color: #258653; }
+  .analysis-row p { color: #555b64; font-size: .78rem; line-height: 1.6; margin: .25rem 0 0; }
+  .takeaway { border-left: 3px solid #2f6fed; margin-top: 1rem; padding: .2rem 0 .2rem 1rem; }
+  .takeaway span { color: #2f6fed; font-size: .68rem; font-weight: 800; }
+  .takeaway p { color: #4e555e; font-size: .8rem; line-height: 1.6; margin: .25rem 0 0; }
+  .question-actions { display: flex; gap: .65rem; justify-content: flex-end; margin-top: 2rem; }
+  .question-actions button { border-radius: .6rem; font-size: .76rem; padding: .7rem 1rem; }
+  .secondary-button { background: white; border: 1px solid #dfe2e6; color: #555b63; }
+  .secondary-button:disabled { cursor: default; opacity: .35; }
+  .primary-button { background: #172238; border: 1px solid #172238; color: white; }
+  .navigator { border: 0; border-radius: 1rem; box-shadow: 0 20px 70px #0c142733; max-height: min(720px, 85vh); max-width: 650px; padding: 1.4rem; width: calc(100% - 2rem); }
+  .navigator::backdrop, .sync-dialog::backdrop { background: #12182488; backdrop-filter: blur(3px); }
+  .nav-dialog-head { align-items: start; display: flex; justify-content: space-between; }
+  .nav-dialog-head p { font-size: 1.1rem; font-weight: 750; margin: 0 0 .2rem; }
+  .nav-dialog-head small { color: #858a91; }
+  .nav-dialog-head button { background: #f0f2f4; border: 0; border-radius: 50%; font-size: 1.2rem; height: 2rem; width: 2rem; }
+  .legend { display: flex; gap: 1rem; margin: 1.2rem 0; }
+  .legend span { align-items: center; color: #747a82; display: flex; font-size: .7rem; gap: .35rem; }
+  .legend i { border: 1px solid #d9dde2; border-radius: .2rem; height: .7rem; width: .7rem; }
+  .legend i.done { background: #dff4e7; border-color: #73b78d; } .legend i.wrong { background: #fbe3e1; border-color: #d97972; }
+  .number-grid { display: grid; gap: .4rem; grid-template-columns: repeat(10, 1fr); overflow: auto; padding-right: .2rem; }
+  .number-grid button { aspect-ratio: 1; background: white; border: 1px solid #dfe2e6; border-radius: .4rem; color: #626870; font-size: .67rem; }
+  .number-grid button.done { background: #eaf8ef; border-color: #78b991; color: #1e7447; }
+  .number-grid button.wrong { background: #fff0ef; border-color: #d97c75; color: #b6423c; }
+  .sync-dialog { border: 0; border-radius: 1rem; box-shadow: 0 20px 70px #0c142733; max-width: 480px; padding: 1.5rem; width: calc(100% - 2rem); }
+  .sync-status { align-items: center; background: #f4f5f7; border-radius: .65rem; color: #626870; display: flex; font-size: .76rem; gap: .5rem; margin: 1.2rem 0; padding: .75rem; }
+  .sync-status i { background: #9ba0a7; border-radius: 50%; height: .55rem; width: .55rem; }
+  .sync-status i.success { background: #258653; }
+  .sync-status i.working { background: #d79a2b; }
+  .sync-status i.error { background: #c94f48; }
+  .sync-dialog > label { color: #737983; display: block; font-size: .7rem; font-weight: 750; margin-bottom: .4rem; }
+  .sync-dialog > input { border: 1px solid #d9dde2; border-radius: .65rem; font: 750 1.05rem ui-monospace, SFMono-Regular, monospace; letter-spacing: .08em; padding: .8rem; text-transform: uppercase; width: 100%; }
+  .sync-help { color: #777d85; font-size: .72rem; line-height: 1.6; margin: .7rem 0 1.1rem; }
+  .sync-actions { display: grid; gap: .6rem; grid-template-columns: 1fr 1fr; }
+  .sync-actions button { border-radius: .6rem; padding: .75rem; }
+  .sync-utilities { display: flex; justify-content: space-between; margin-top: 1rem; }
+  .sync-utilities button { background: none; border: 0; color: #717780; font-size: .68rem; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+  @media (max-width: 760px) {
+    .quiz-shell { padding-top: 1rem; }
+    .quiz-hero { align-items: start; gap: 1rem; grid-template-columns: 1fr; padding: 2rem 0; }
+    .hero-score { border-radius: .75rem; flex-direction: row; gap: .55rem; height: auto; padding: .8rem 1rem; width: max-content; }
+    .hero-score span { font-size: 1.25rem; }
+    .dashboard { grid-template-columns: repeat(2, 1fr); }
+    .stat:nth-child(3) { border-left: 0; border-top: 1px solid #e3e5e8; }
+    .stat:nth-child(4) { border-top: 1px solid #e3e5e8; }
+    .workspace { grid-template-columns: 1fr; }
+    .sidebar { position: static; }
+    .syllabus { display: none; }
+    .question-card { min-height: auto; }
+    .question-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .primary-button { grid-column: 1 / -1; grid-row: 1; }
+    .number-grid { grid-template-columns: repeat(6, 1fr); }
+  }
+  @media (max-width: 420px) {
+    .dashboard .stat { padding: 1rem; }
+    .option { grid-template-columns: 1.8rem 1fr; padding: .75rem; }
+    .option span { height: 1.8rem; }
+  }
+</style>
