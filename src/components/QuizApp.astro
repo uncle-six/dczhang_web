@@ -126,6 +126,8 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
       answers: {},
       favorites: [],
       currentId: 1,
+      lastAnsweredId: null,
+      lastAnsweredAt: 0,
       mode: 'sequence',
       category: '全部',
       streak: 0,
@@ -149,6 +151,8 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
       answers: state.answers,
       favorites: state.favorites,
       currentId: state.currentId,
+      lastAnsweredId: state.lastAnsweredId,
+      lastAnsweredAt: state.lastAnsweredAt,
       streak: state.streak,
     });
 
@@ -223,6 +227,10 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
         state.answers = { ...(remote.answers || {}), ...(state.answers || {}) };
         state.favorites = [...new Set([...(remote.favorites || []), ...(state.favorites || [])])];
         if (!hadLocalAnswers && remote.currentId) state.currentId = remote.currentId;
+        if ((remote.lastAnsweredAt || 0) > (state.lastAnsweredAt || 0) || (!state.lastAnsweredId && remote.lastAnsweredId)) {
+          state.lastAnsweredId = remote.lastAnsweredId;
+          state.lastAnsweredAt = remote.lastAnsweredAt || 0;
+        }
         state.streak = Math.max(state.streak || 0, remote.streak || 0);
         syncReady = true;
         localStorage.setItem(STORE_KEY, JSON.stringify(state));
@@ -238,13 +246,26 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
     const answeredIds = () => Object.keys(state.answers).map(Number);
     const wrongIds = () => answeredIds().filter((id) => state.answers[id] !== questions.find((q) => q.id === id)?.answer);
 
-    function filterQuestions(keepCurrent = true) {
+    function sequenceResumeIndex() {
+      const answered = answeredIds();
+      const inferredLastId = state.lastAnsweredId
+        || (state.answers[state.currentId] !== undefined ? state.currentId : null)
+        || (answered.length ? Math.max(...answered) : null);
+      if (inferredLastId) {
+        const lastIndex = activeQuestions.findIndex((q) => q.id === inferredLastId);
+        if (lastIndex >= 0) return Math.min(lastIndex + 1, activeQuestions.length - 1);
+      }
+      const firstUnanswered = activeQuestions.findIndex((q) => state.answers[q.id] === undefined);
+      return firstUnanswered >= 0 ? firstUnanswered : 0;
+    }
+
+    function filterQuestions(keepCurrent = true, resumeSequence = false) {
       activeQuestions = questions.filter((q) => state.category === '全部' || q.category === state.category);
       if (state.mode === 'wrong') activeQuestions = activeQuestions.filter((q) => wrongIds().includes(q.id));
       if (state.mode === 'favorite') activeQuestions = activeQuestions.filter((q) => state.favorites.includes(q.id));
       if (state.mode === 'random') activeQuestions = [...activeQuestions].sort(() => Math.random() - .5);
       const found = keepCurrent ? activeQuestions.findIndex((q) => q.id === state.currentId) : -1;
-      currentIndex = found >= 0 ? found : 0;
+      currentIndex = resumeSequence && activeQuestions.length ? sequenceResumeIndex() : (found >= 0 ? found : 0);
       if (activeQuestions[0]) state.currentId = activeQuestions[currentIndex].id;
       render();
     }
@@ -317,6 +338,8 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
       const q = activeQuestions[currentIndex];
       if (state.answers[q.id] !== undefined) return;
       state.answers[q.id] = index;
+      state.lastAnsweredId = q.id;
+      state.lastAnsweredAt = Date.now();
       state.streak = index === q.answer ? (state.streak || 0) + 1 : 0;
       render();
     }
@@ -355,7 +378,7 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
       document.querySelectorAll('.mode').forEach((item) => item.classList.remove('active'));
       button.classList.add('active');
       state.mode = button.dataset.mode;
-      filterQuestions(false);
+      filterQuestions(false, state.mode === 'sequence');
     }));
     $('#category-select').value = state.category;
     $('#category-select').addEventListener('change', (event) => { state.category = event.target.value; filterQuestions(false); });
@@ -369,7 +392,7 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
     });
     $('#reset-button').addEventListener('click', () => {
       if (!confirm('确定清空全部答题记录、错题和收藏吗？')) return;
-      state.answers = {}; state.favorites = []; state.currentId = 1; state.streak = 0;
+      state.answers = {}; state.favorites = []; state.currentId = 1; state.lastAnsweredId = null; state.lastAnsweredAt = 0; state.streak = 0;
       filterQuestions(false);
     });
 

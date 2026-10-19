@@ -26,8 +26,14 @@ function sanitizePayload(value) {
   const currentId = Number.isInteger(value.currentId) && value.currentId > 0 && value.currentId <= 300
     ? value.currentId
     : 1;
+  const lastAnsweredId = Number.isInteger(value.lastAnsweredId) && value.lastAnsweredId > 0 && value.lastAnsweredId <= 300
+    ? value.lastAnsweredId
+    : null;
+  const lastAnsweredAt = Number.isFinite(value.lastAnsweredAt) && value.lastAnsweredAt >= 0
+    ? Math.floor(value.lastAnsweredAt)
+    : 0;
   const streak = Number.isInteger(value.streak) && value.streak >= 0 ? Math.min(value.streak, 300) : 0;
-  return { answers, favorites, currentId, streak };
+  return { answers, favorites, currentId, lastAnsweredId, lastAnsweredAt, streak };
 }
 
 function redisCredentials() {
