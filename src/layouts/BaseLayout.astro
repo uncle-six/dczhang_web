@@ -15,6 +15,9 @@ const {
 } = Astro.props;
 
 const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const isFoundationQuiz = Astro.url.pathname.startsWith('/java-quiz');
+const isPracticeQuiz = Astro.url.pathname.startsWith('/java-practice-quiz');
+const isQuizPage = isFoundationQuiz || isPracticeQuiz;
 ---
 
 <!doctype html>
@@ -40,8 +43,21 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <header class="site-header">
       <a class="brand" href="/" aria-label="返回首页">DC<span>.</span></a>
       <nav aria-label="主导航">
-        <a href="/java-quiz/">Java 题库</a>
-        <a href="/java-practice-quiz/">Java 实践</a>
+        <details class="quiz-menu">
+          <summary class:list={{ active: isQuizPage }}>
+            Java 题库 <span class="menu-chevron" aria-hidden="true">⌄</span>
+          </summary>
+          <div class="quiz-popover">
+            <a class:list={{ active: isFoundationQuiz }} href="/java-quiz/">
+              <strong>Java 基础</strong>
+              <small>300 道等级认证题</small>
+            </a>
+            <a class:list={{ active: isPracticeQuiz }} href="/java-practice-quiz/">
+              <strong>Java 实践</strong>
+              <small>200 道框架与工程题</small>
+            </a>
+          </div>
+        </details>
         <a href="/posts/">文章</a>
         <a href="/about/">关于</a>
         <button class="search-link search-trigger" type="button" aria-haspopup="dialog" aria-controls="site-search">
@@ -269,6 +285,17 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   .brand span { color: var(--accent); }
   nav { align-items: center; display: flex; gap: 1.25rem; font-size: .9rem; }
   nav a { text-decoration: none; }
+  .quiz-menu { position: relative; }
+  .quiz-menu summary { align-items: center; cursor: pointer; display: inline-flex; gap: .25rem; list-style: none; white-space: nowrap; }
+  .quiz-menu summary::-webkit-details-marker { display: none; }
+  .quiz-menu summary:hover, .quiz-menu summary.active { color: var(--accent); }
+  .menu-chevron { display: inline-block; font-size: .78rem; transition: transform .18s ease; }
+  .quiz-menu[open] .menu-chevron { transform: rotate(180deg); }
+  .quiz-popover { animation: menu-in .16s ease-out; background: #fff; border: 1px solid var(--line); box-shadow: 0 14px 36px rgba(32, 34, 31, .13); left: -.75rem; min-width: 14rem; padding: .45rem; position: absolute; top: calc(100% + .75rem); z-index: 20; }
+  .quiz-popover a { border-radius: .3rem; display: flex; flex-direction: column; gap: .2rem; padding: .72rem .8rem; }
+  .quiz-popover a:hover, .quiz-popover a.active { background: #f2f6fb; color: var(--accent); }
+  .quiz-popover strong { font-size: .86rem; font-weight: 650; }
+  .quiz-popover small { color: var(--muted); font-size: .7rem; }
   .search-link { align-items: center; background: transparent; border: 0; color: inherit; cursor: pointer; display: inline-flex; font: inherit; gap: .3rem; padding: 0; }
   .search-link svg { fill: none; height: .9rem; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; width: .9rem; }
   .contact-menu { position: relative; }
