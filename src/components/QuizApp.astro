@@ -50,6 +50,7 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
           <button class="mode active" data-mode="sequence" type="button">顺序练习</button>
           <button class="mode" data-mode="random" type="button">随机练习</button>
           <button class="mode" data-mode="wrong" type="button">只看错题</button>
+          <button class="mode" data-mode="favorite" type="button">只看收藏 <span id="favorite-count">0</span></button>
         </div>
         <label class="select-label" for="category-select">考试模块</label>
         <select id="category-select">
@@ -240,6 +241,7 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
     function filterQuestions(keepCurrent = true) {
       activeQuestions = questions.filter((q) => state.category === '全部' || q.category === state.category);
       if (state.mode === 'wrong') activeQuestions = activeQuestions.filter((q) => wrongIds().includes(q.id));
+      if (state.mode === 'favorite') activeQuestions = activeQuestions.filter((q) => state.favorites.includes(q.id));
       if (state.mode === 'random') activeQuestions = [...activeQuestions].sort(() => Math.random() - .5);
       const found = keepCurrent ? activeQuestions.findIndex((q) => q.id === state.currentId) : -1;
       currentIndex = found >= 0 ? found : 0;
@@ -255,10 +257,15 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
       $('#accuracy').textContent = done ? `${Math.round((done - wrong) / done * 100)}%` : '—';
       $('#streak-count').textContent = String(state.streak || 0);
       $('#hero-progress').textContent = `${Math.round(done / questions.length * 100)}%`;
+      $('#favorite-count').textContent = String(state.favorites.length);
     }
 
     function renderEmpty() {
-      $('#question-stem').textContent = state.mode === 'wrong' ? '太棒了，当前范围没有错题。' : '当前范围没有题目。';
+      $('#question-stem').textContent = state.mode === 'wrong'
+        ? '太棒了，当前范围没有错题。'
+        : state.mode === 'favorite'
+          ? '当前范围还没有收藏题目。'
+          : '当前范围没有题目。';
       $('#topic-label').textContent = '练习完成';
       $('#options').replaceChildren();
       $('#explanation').hidden = true;
@@ -358,7 +365,7 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
       const id = activeQuestions[currentIndex]?.id;
       if (!id) return;
       state.favorites = state.favorites.includes(id) ? state.favorites.filter((item) => item !== id) : [...state.favorites, id];
-      render();
+      state.mode === 'favorite' ? filterQuestions(false) : render();
     });
     $('#reset-button').addEventListener('click', () => {
       if (!confirm('确定清空全部答题记录、错题和收藏吗？')) return;
@@ -461,6 +468,8 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
   .mode-switch { background: #f1f3f6; border-radius: .65rem; display: grid; gap: .25rem; padding: .25rem; }
   .mode { background: transparent; border: 0; border-radius: .5rem; color: #686d75; font-size: .78rem; padding: .65rem; text-align: left; }
   .mode.active { background: white; box-shadow: 0 1px 4px #13233a14; color: #16233a; font-weight: 700; }
+  .mode #favorite-count { background: #dfe7f5; border-radius: 99px; color: #5b6678; display: inline-flex; font-size: .65rem; font-weight: 750; justify-content: center; margin-left: .25rem; min-width: 1.25rem; padding: .12rem .35rem; }
+  .mode.active #favorite-count { background: #2f6fed; color: white; }
   .select-label { color: #8a8f96; display: block; font-size: .68rem; font-weight: 700; margin: 1.25rem 0 .45rem; text-transform: uppercase; }
   select { background: white; border: 1px solid #dfe2e6; border-radius: .55rem; color: #252a31; padding: .65rem; width: 100%; }
   .syllabus { border-top: 1px solid #eceef0; margin-top: 1.25rem; padding-top: 1rem; }
@@ -724,7 +733,7 @@ const { bank, questions, categoryCounts, title, heading, description } = Astro.p
     .quiz-shell .stat span { font-size: 1.45rem; }
     .quiz-shell .workspace { gap: .8rem; grid-template-columns: 1fr; }
     .quiz-shell .sidebar { border-radius: 1rem; padding: 1rem; }
-    .quiz-shell .mode-switch { grid-template-columns: repeat(3, 1fr); }
+    .quiz-shell .mode-switch { grid-template-columns: repeat(2, 1fr); }
     .quiz-shell .mode { padding: .7rem .25rem; text-align: center; }
     .quiz-shell .outline-button,
     .quiz-shell .sync-button { display: inline-flex; margin-top: .75rem; vertical-align: top; width: calc(50% - .3rem); }
