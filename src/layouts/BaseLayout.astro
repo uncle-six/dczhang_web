@@ -105,7 +105,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
         recordVisit();
       }
 
-      const revealItems = document.querySelectorAll<HTMLElement>('[data-reveal]');
+      const revealItems = document.querySelectorAll<HTMLElement>('[data-reveal], .post .prose > *');
       const motionEnabled = document.documentElement.classList.contains('motion-ready');
 
       if (!motionEnabled || !('IntersectionObserver' in window)) {
@@ -118,8 +118,17 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
               currentObserver.unobserve(entry.target);
             }
           });
-        }, { threshold: 0.08 });
-        revealItems.forEach((item) => observer.observe(item));
+        }, { threshold: 0 });
+        revealItems.forEach((item) => {
+          // Keep the first screen visible; animate later blocks individually.
+          // Waiting for a percentage of a long article can leave its start blank.
+          if (item.getBoundingClientRect().top < window.innerHeight) {
+            item.classList.add('is-visible');
+          } else {
+            item.setAttribute('data-reveal', '');
+            observer.observe(item);
+          }
+        });
       }
 
       const topButton = document.querySelector<HTMLButtonElement>('.back-to-top');
