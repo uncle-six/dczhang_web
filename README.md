@@ -28,21 +28,44 @@ tags: [随笔]
 
 ## 访客 IP 记录（Vercel）
 
-正式域名 `dczhang.me` / `www.dczhang.me` 的页面在首次变为可见时，自动向 `/api/visit` 发送一次空的 POST 请求。接口 `api/visit.js` 从 Vercel 提供的可信请求头获取公网 IPv4 / IPv6，将 IP 和服务器生成的 UTC 时间写入私有运行日志。不请求定位权限，不读取 GPS，也不保存页面路径、查询参数或浏览器提交的 IP；上报请求不携带 Cookie 或来源页面。开发环境和预览域名不自动上报。
+正式域名 `dczhang.me` / `www.dczhang.me` 的页面在首次变为可见时，自动向 `/api/visit` 发送一次空的 POST 请求。接口 `api/visit.js` 从 Vercel 提供的可信请求头获取公网 IPv4 / IPv6，将 IP 和服务器生成的 UTC 时间写入 Upstash Redis，并保留一份私有运行日志。不请求定位权限，不读取 GPS，也不保存页面路径、查询参数或浏览器提交的 IP；上报请求不携带 Cookie 或来源页面。开发环境和预览域名不自动上报。
 
-查看方法：打开 **Vercel → 当前项目 → Logs**，选择 **Production** 环境，搜索 `visitor-ip`，展开对应的 `/api/visit` 函数日志。记录格式如下（示例地址不代表真实访客）：
+### 连接长期存储
+
+1. 在 **Vercel → 当前项目 → Storage / Marketplace** 中连接一个 Upstash Redis 数据库；可以复用以前题库使用的实例。按 [官方集成说明](https://upstash.com/docs/redis/howto/vercelintegration) 将数据库连接到项目的 **Production** 环境。
+2. 确认 Vercel 项目中有成对的 `UPSTASH_REDIS_REST_URL` 和 `UPSTASH_REDIS_REST_TOKEN`。代码也支持旧配置 `KV_REST_API_URL` / `KV_REST_API_TOKEN`，以及 `UPSTASH_REDIS_REST_KV_REST_API_URL` / `UPSTASH_REDIS_REST_KV_REST_API_TOKEN`。如果想独立存放访客记录，可设置优先级更高的 `VISITOR_IP_REDIS_REST_URL` / `VISITOR_IP_REDIS_REST_TOKEN`。只使用完整的 URL / Token 配对，不跨前缀拼接。需要可写 Token，不能使用只读 Token。
+3. 重新部署项目，让生产环境获得这些变量。密钥只配置在服务端环境变量中；不要写入前端、README 或 Git。仓库中的 `.env.example` 仅展示变量名。
+
+数据库默认不设置记录过期时间，不按天清理、不覆盖或裁剪旧记录；每次访问以一条 JSON 追加到 Redis List `visitor:ips:v1`，最新的在前。[Upstash 提供持久化存储](https://upstash.com/docs/redis/features/durability)，数据不会随 Vercel 日志过期而消失。保留数据库的 **Eviction 关闭**（[默认如此](https://upstash.com/docs/redis/features/eviction)），避免容量不足时淘汰历史数据；长期数据仍受数据库存续、容量及套餐限制，需要自行安排备份。
+
+### 查看与验证
+
+打开数据库的 Data Browser / Redis Console，查看键 `visitor:ips:v1`。可运行以下只读命令；列表很大时按页查看，避免一次读取全部 IP：
+
+```text
+LLEN visitor:ips:v1
+LRANGE visitor:ips:v1 0 99
+LRANGE visitor:ips:v1 100 199
+TTL visitor:ips:v1
+```
+
+`LLEN` 返回总记录数，`LRANGE` 返回指定范围的记录；`TTL` 应为 `-1`（无过期时间），`-2` 表示该键尚未创建。每条记录的格式如下（示例地址不代表真实访客）：
 
 ```json
 {"event":"visitor-ip","at":"2026-11-03T12:00:00.000Z","ip":"203.0.113.10"}
 ```
 
-此版本不需要数据库或额外环境变量，但日志不是永久保存：按 [Vercel 运行日志文档](https://vercel.com/docs/logs/runtime)，Hobby 目前保留 1 小时，Pro 保留 1 天；实际以账户套餐为准。需要长期留存时应接入数据库或日志存储服务，不能把运行日志当作长期档案。日志不会提供给公开网页查询。
+线上 `/api/visit` 返回 **204** 且响应头 `x-visitor-ip-storage: redis`，才代表数据库已确认写入。未配置数据库、写入超时、凭据错误或容量用尽时，接口返回 **503** 和 `x-visitor-ip-storage: runtime-log`，并保留临时日志；不能据此声称已长期保存。数据库未连好时，原来的临时记录仍在。
+
+临时日志查看方法：**Vercel → 当前项目 → Logs → Production**，搜索 `visitor-ip`；存储失败时还会出现 `visitor-ip-storage-unavailable`，原因可能是 `missing-config`、`invalid-config` 或 `write-failed`。错误日志不会包含数据库密钥或上游原始错误。按 [Vercel 运行日志文档](https://vercel.com/docs/logs/runtime)，Hobby 目前保留 1 小时、Pro 保留 1 天；临时日志不能替代数据库。数据库记录和临时日志都没有公开读取接口。
+
+仅新版本部署后且数据库写入成功的访问会长期保存；旧运行日志中已过期的记录无法通过本次改动恢复。
 
 接口只在 Vercel 运行时接受记录，拒绝跨站上报；优先读取 `x-vercel-forwarded-for`，仅在该可信地址属于 Cloudflare 官方代理网段时，使用 `CF-Connecting-IP` 恢复原始访客地址。网段来自 [IPv4 列表](https://www.cloudflare.com/ips-v4) 与 [IPv6 列表](https://www.cloudflare.com/ips-v6)，变更时需同步更新 `api/visit.js`。无法获取有效 IP 时返回 503，不写入假的地址。不要把本接口直接部署到其他平台并信任任意来访请求头。
 
-脚本被拦截、JavaScript 被禁用、请求失败或不执行脚本的爬虫访问，可能不会留下这类记录；它不是所有 HTTP 请求的完整访问日志。IP 只代表网络出口，无法确定具体个人或街道门牌。页脚已注明记录用途。
+脚本被拦截、JavaScript 被禁用、请求失败或不执行脚本的爬虫访问，可能不会留下这类记录；它不是所有 HTTP 请求的完整访问日志。IP 只代表网络出口，无法确定具体个人或街道门牌。
 
-运行 `npm test` 检查接口的 IP 来源验证、IPv6、跨站拒绝和响应不泄露记录等行为；`npm run build` 检查博客构建。`astro dev` / `astro preview` 只提供静态站点，不运行根目录下的 Vercel API，接口需在 Vercel 部署后验证。
+运行 `npm test` 检查 IP 来源验证、IPv6、跨站拒绝、数据库追加、配置兼容与写入失败等行为；测试使用模拟存储，不会请求生产数据库。`npm run build` 检查博客构建。`astro dev` / `astro preview` 只提供静态站点，不运行根目录下的 Vercel API，接口需在 Vercel 部署后验证。
 
 ## 部署到 Cloudflare Pages
 

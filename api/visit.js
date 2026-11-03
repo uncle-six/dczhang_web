@@ -47,7 +47,44 @@ function emptyResponse(status, headers = {}) {
   });
 }
 
-export function POST(request) {
+async function saveVisit(record) {
+  // Keep complete URL/token pairs together when reusing existing integrations.
+  const pairs = [
+    ['VISITOR_IP_REDIS_REST_URL', 'VISITOR_IP_REDIS_REST_TOKEN'],
+    ['UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'],
+    ['KV_REST_API_URL', 'KV_REST_API_TOKEN'],
+    ['UPSTASH_REDIS_REST_KV_REST_API_URL', 'UPSTASH_REDIS_REST_KV_REST_API_TOKEN'],
+  ];
+  const pair = pairs.find(([url, token]) => process.env[url]?.trim() && process.env[token]?.trim());
+  if (!pair) return 'missing-config';
+
+  const url = process.env[pair[0]].trim();
+  const token = process.env[pair[1]].trim();
+  try {
+    const endpoint = new URL(url);
+    if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) return 'invalid-config';
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      // An append-only list: no expiration, truncation, or overwrite of old visits.
+      body: JSON.stringify(['LPUSH', 'visitor:ips:v1', JSON.stringify(record)]),
+      signal: AbortSignal.timeout(4000),
+      redirect: 'error',
+      cache: 'no-store',
+    });
+    const result = await response.json();
+    if (!response.ok || result.error || !Number.isSafeInteger(result.result) || result.result < 1) {
+      return 'write-failed';
+    }
+    return 'redis';
+  } catch {
+    // Provider errors can contain secrets or personal data. Log a fixed reason only.
+    return 'write-failed';
+  }
+}
+
+export async function POST(request) {
   if (request.method !== 'POST') return emptyResponse(405, { allow: 'POST' });
 
   // This endpoint relies on Vercel's sanitized request headers. Do not trust
@@ -66,7 +103,14 @@ export function POST(request) {
     return emptyResponse(503);
   }
 
-  // Private runtime logs only: no public read endpoint and no IP in the response.
-  console.info(JSON.stringify({ event: 'visitor-ip', at: new Date().toISOString(), ip }));
-  return emptyResponse(204);
+  const record = { event: 'visitor-ip', at: new Date().toISOString(), ip };
+  const storage = await saveVisit(record);
+  // Retain a private diagnostic copy, including when the database is unavailable.
+  console.info(JSON.stringify(record));
+  if (storage !== 'redis') {
+    console.warn(JSON.stringify({ event: 'visitor-ip-storage-unavailable', reason: storage }));
+    // Do not report successful long-term storage when only a runtime log exists.
+    return emptyResponse(503, { 'x-visitor-ip-storage': 'runtime-log' });
+  }
+  return emptyResponse(204, { 'x-visitor-ip-storage': 'redis' });
 }

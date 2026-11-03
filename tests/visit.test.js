@@ -2,20 +2,39 @@ import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { POST } from '../api/visit.js';
 
-let previousVercel;
+const configNames = [
+  'VERCEL', 'VISITOR_IP_REDIS_REST_URL', 'VISITOR_IP_REDIS_REST_TOKEN',
+  'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
+  'KV_REST_API_URL', 'KV_REST_API_TOKEN',
+  'UPSTASH_REDIS_REST_KV_REST_API_URL', 'UPSTASH_REDIS_REST_KV_REST_API_TOKEN',
+];
+let previousEnv;
 let messages;
+let warnings;
+let writes;
 
 beforeEach((context) => {
-  previousVercel = process.env.VERCEL;
+  previousEnv = Object.fromEntries(configNames.map((name) => [name, process.env[name]]));
+  for (const name of configNames) delete process.env[name];
   process.env.VERCEL = '1';
+  process.env.UPSTASH_REDIS_REST_URL = 'https://visitor-ips.example.upstash.io';
+  process.env.UPSTASH_REDIS_REST_TOKEN = 'test-only-token';
   messages = [];
+  warnings = [];
+  writes = [];
   context.mock.method(console, 'info', (message) => messages.push(JSON.parse(message)));
-  context.mock.method(console, 'warn', () => {});
+  context.mock.method(console, 'warn', (message) => warnings.push(message));
+  context.mock.method(globalThis, 'fetch', async (url, options) => {
+    writes.push({ url: String(url), options });
+    return Response.json({ result: writes.length });
+  });
 });
 
 afterEach(() => {
-  if (previousVercel === undefined) delete process.env.VERCEL;
-  else process.env.VERCEL = previousVercel;
+  for (const name of configNames) {
+    if (previousEnv[name] === undefined) delete process.env[name];
+    else process.env[name] = previousEnv[name];
+  }
 });
 
 function request(headers = {}, options = {}) {
@@ -32,99 +51,187 @@ function request(headers = {}, options = {}) {
 }
 
 test('records only the platform IP and server timestamp without exposing them', async () => {
-  const response = POST(request({ cookie: 'session=secret', referer: 'https://example.com/private' }, {
+  const response = await POST(request({ cookie: 'session=secret', referer: 'https://example.com/private' }, {
     body: JSON.stringify({ ip: '198.51.100.99', path: '/private?token=secret' }),
   }));
   assert.equal(response.status, 204);
   assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal(response.headers.get('x-visitor-ip-storage'), 'redis');
   assert.equal(await response.text(), '');
   assert.equal(messages.length, 1);
   assert.deepEqual(Object.keys(messages[0]).sort(), ['at', 'event', 'ip']);
   assert.equal(messages[0].event, 'visitor-ip');
   assert.equal(messages[0].ip, '203.0.113.10');
   assert.ok(Math.abs(Date.now() - Date.parse(messages[0].at)) < 5000);
+  assert.equal(writes.length, 1);
+  const { options } = writes[0];
+  const command = JSON.parse(options.body);
+  assert.deepEqual(command.slice(0, 2), ['LPUSH', 'visitor:ips:v1']);
+  assert.equal(command.length, 3);
+  assert.deepEqual(JSON.parse(command[2]), messages[0]);
+  assert.equal(options.headers.authorization, 'Bearer test-only-token');
+  assert.equal(options.redirect, 'error');
+  assert.ok(options.signal instanceof AbortSignal);
 });
 
-test('supports native IPv6 visitors', () => {
-  assert.equal(POST(request({ 'x-vercel-forwarded-for': '2001:db8::42' })).status, 204);
+test('supports native IPv6 visitors', async () => {
+  assert.equal((await POST(request({ 'x-vercel-forwarded-for': '2001:db8::42' }))).status, 204);
   assert.equal(messages[0].ip, '2001:db8::42');
 });
 
-test('restores a visitor IP behind a trusted Cloudflare IPv4 or IPv6 proxy', () => {
+test('restores a visitor IP behind a trusted Cloudflare IPv4 or IPv6 proxy', async () => {
   for (const peer of ['104.16.1.2', '2606:4700::1234']) {
-    assert.equal(POST(request({
+    assert.equal((await POST(request({
       'x-vercel-forwarded-for': peer,
       'cf-connecting-ip': '198.51.100.25',
-    })).status, 204);
+    }))).status, 204);
   }
   assert.deepEqual(messages.map(({ ip }) => ip), ['198.51.100.25', '198.51.100.25']);
 });
 
-test('does not accept spoofed Cloudflare or X-Forwarded-For headers on direct requests', () => {
-  assert.equal(POST(request({
+test('does not accept spoofed Cloudflare or X-Forwarded-For headers on direct requests', async () => {
+  assert.equal((await POST(request({
     'cf-connecting-ip': '198.51.100.99',
     'cf-connecting-ipv6': '2001:db8::99',
     'x-forwarded-for': '198.51.100.99',
-  })).status, 204);
+  }))).status, 204);
   assert.equal(messages[0].ip, '203.0.113.10');
 });
 
-test('uses the original IPv6 when Cloudflare overwrites its header with pseudo IPv4', () => {
+test('uses the original IPv6 when Cloudflare overwrites its header with pseudo IPv4', async () => {
   for (const pseudoIp of ['240.1.2.3', '255.1.2.3']) {
-    assert.equal(POST(request({
+    assert.equal((await POST(request({
       'x-vercel-forwarded-for': '104.16.1.2',
       'cf-connecting-ip': pseudoIp,
       'cf-connecting-ipv6': '2001:db8::42',
-    })).status, 204);
+    }))).status, 204);
   }
   assert.deepEqual(messages.map(({ ip }) => ip), ['2001:db8::42', '2001:db8::42']);
 });
 
-test('does not record a proxy address as a visitor when Cloudflare client data is missing', () => {
+test('does not record a proxy address as a visitor when Cloudflare client data is missing', async () => {
   for (const client of ['', 'not-an-ip', '198.51.100.25, 198.51.100.26']) {
-    assert.equal(POST(request({
+    assert.equal((await POST(request({
       'x-vercel-forwarded-for': '104.16.1.2',
       'cf-connecting-ip': client,
-    })).status, 503);
+    }))).status, 503);
   }
   assert.equal(messages.length, 0);
 });
 
-test('rejects missing or malformed platform IPs without falling back to caller data', () => {
+test('rejects missing or malformed platform IPs without falling back to caller data', async () => {
   for (const peer of ['', 'invalid', '203.0.113.10, 198.51.100.25']) {
-    assert.equal(POST(request({
+    assert.equal((await POST(request({
       'x-vercel-forwarded-for': peer,
       'x-forwarded-for': '198.51.100.99',
       'cf-connecting-ip': '198.51.100.99',
-    })).status, 503);
+    }))).status, 503);
   }
   assert.equal(messages.length, 0);
 });
 
-test('rejects cross-site requests, including null or missing origins', () => {
+test('rejects cross-site requests, including null or missing origins', async () => {
   for (const headers of [
     { origin: 'https://example.com' },
     { origin: 'null' },
     { origin: '' },
     { 'sec-fetch-site': 'cross-site' },
   ]) {
-    assert.equal(POST(request(headers)).status, 403);
+    assert.equal((await POST(request(headers))).status, 403);
   }
   const withoutOrigin = request();
   withoutOrigin.headers.delete('origin');
-  assert.equal(POST(withoutOrigin).status, 403);
+  assert.equal((await POST(withoutOrigin)).status, 403);
   assert.equal(messages.length, 0);
+  assert.equal(writes.length, 0);
 });
 
-test('does not log read requests', () => {
-  const response = POST(request({}, { method: 'GET' }));
+test('does not log read requests', async () => {
+  const response = await POST(request({}, { method: 'GET' }));
   assert.equal(response.status, 405);
   assert.equal(response.headers.get('allow'), 'POST');
   assert.equal(messages.length, 0);
 });
 
-test('does not trust forwarded headers outside the Vercel runtime', () => {
+test('does not trust forwarded headers outside the Vercel runtime', async () => {
   delete process.env.VERCEL;
-  assert.equal(POST(request()).status, 503);
+  assert.equal((await POST(request())).status, 503);
   assert.equal(messages.length, 0);
+  assert.equal(writes.length, 0);
+});
+
+test('retains every visit instead of expiring, overwriting, or trimming records', async () => {
+  await Promise.all([POST(request()), POST(request()), POST(request())]);
+  assert.equal(writes.length, 3);
+  assert.ok(writes.every(({ options }) => JSON.parse(options.body)[0] === 'LPUSH'));
+});
+
+test('supports all existing integration prefixes and prefers visitor-specific credentials', async () => {
+  for (const [url, token] of [
+    ['KV_REST_API_URL', 'KV_REST_API_TOKEN'],
+    ['UPSTASH_REDIS_REST_KV_REST_API_URL', 'UPSTASH_REDIS_REST_KV_REST_API_TOKEN'],
+    ['VISITOR_IP_REDIS_REST_URL', 'VISITOR_IP_REDIS_REST_TOKEN'],
+  ]) {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    process.env[url] = 'https://alternate.example.upstash.io';
+    process.env[token] = 'alternate-test-token';
+    if (url.startsWith('VISITOR_IP_')) {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://old.example.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'old-test-token';
+    }
+    assert.equal((await POST(request())).status, 204);
+    assert.equal(writes.at(-1).url, 'https://alternate.example.upstash.io/');
+    assert.equal(writes.at(-1).options.headers.authorization, 'Bearer alternate-test-token');
+    delete process.env[url];
+    delete process.env[token];
+  }
+});
+
+test('does not mix incomplete URL/token pairs from different integrations', async () => {
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  process.env.VISITOR_IP_REDIS_REST_TOKEN = 'other-integration-token';
+  const response = await POST(request());
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('x-visitor-ip-storage'), 'runtime-log');
+  assert.equal(writes.length, 0);
+  assert.equal(messages.length, 1);
+});
+
+test('preserves a fallback log without claiming database success if storage is unconfigured', async () => {
+  delete process.env.UPSTASH_REDIS_REST_URL;
+  delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  const response = await POST(request());
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('x-visitor-ip-storage'), 'runtime-log');
+  assert.equal(await response.text(), '');
+  assert.equal(messages.length, 1);
+  assert.equal(writes.length, 0);
+  assert.equal(JSON.parse(warnings[0]).reason, 'missing-config');
+});
+
+test('rejects insecure database endpoints without sending the token', async () => {
+  process.env.UPSTASH_REDIS_REST_URL = 'http://visitor-ips.example.upstash.io';
+  assert.equal((await POST(request())).status, 503);
+  assert.equal(writes.length, 0);
+});
+
+test('handles provider errors, quota failures, malformed responses, and timeouts safely', async (context) => {
+  for (const fail of [
+    async () => Response.json({ error: 'test-only-token' }, { status: 429 }),
+    async () => Response.json({ error: 'test-only-token' }),
+    async () => Response.json({ result: 0 }),
+    async () => Response.json({ result: 'OK' }),
+    async () => new Response('invalid-json'),
+    async () => { throw new Error('test-only-token'); },
+    async () => { throw new DOMException('test-only-token', 'TimeoutError'); },
+  ]) {
+    context.mock.method(globalThis, 'fetch', fail);
+    const response = await POST(request());
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get('x-visitor-ip-storage'), 'runtime-log');
+    assert.equal(await response.text(), '');
+  }
+  assert.equal(messages.length, 7);
+  assert.ok(warnings.every((message) => !message.includes('test-only-token')));
 });
