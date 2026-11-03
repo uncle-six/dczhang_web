@@ -1,4 +1,5 @@
 import { BlockList, isIP } from 'node:net';
+import { readVisitPayload, visitMetadata } from '../src/utils/visit-metadata.js';
 
 // Cloudflare's published proxy networks, checked on 2026-11-03:
 // https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6
@@ -103,7 +104,14 @@ export async function POST(request) {
     return emptyResponse(503);
   }
 
-  const record = { event: 'visitor-ip', at: new Date().toISOString(), ip };
+  let metadata = {};
+  try {
+    const payload = await readVisitPayload(request);
+    if (payload !== null) metadata = visitMetadata(payload, request);
+  } catch (error) {
+    return emptyResponse(error.status === 413 ? 413 : 400);
+  }
+  const record = { event: 'visitor-ip', at: new Date().toISOString(), ip, ...metadata };
   const storage = await saveVisit(record);
   // Retain a private diagnostic copy, including when the database is unavailable.
   console.info(JSON.stringify(record));

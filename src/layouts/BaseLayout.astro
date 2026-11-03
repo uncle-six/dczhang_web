@@ -87,22 +87,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <button class="back-to-top" type="button" aria-label="返回顶部" hidden>↑</button>
     <Analytics />
     <script>
+      import { startVisitTracking } from '../scripts/visit-tracker.js';
+
       if (import.meta.env.PROD && ['dczhang.me', 'www.dczhang.me'].includes(location.hostname)) {
-        let visitRecorded = false;
-        const recordVisit = () => {
-          if (visitRecorded || document.visibilityState !== 'visible') return;
-          visitRecorded = true;
-          document.removeEventListener('visibilitychange', recordVisit);
-          void fetch('/api/visit', {
-            method: 'POST',
-            credentials: 'omit',
-            referrerPolicy: 'no-referrer',
-            cache: 'no-store',
-            keepalive: true,
-          }).catch(() => {});
-        };
-        document.addEventListener('visibilitychange', recordVisit);
-        recordVisit();
+        try { startVisitTracking(); } catch { /* Optional analytics must not stop page interactions. */ }
       }
 
       const revealItems = document.querySelectorAll<HTMLElement>('[data-reveal], .post .prose > *');
